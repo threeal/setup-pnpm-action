@@ -1,10 +1,8 @@
-# TODO: Modify the following metadata according to the project's specifications.
-
-name: Mkdir Action
+name: Setup pnpm Action
 author: Alfi Maulana
-description: Create a new directory
+description: Set up pnpm with a specified version
 branding:
-  icon: folder-plus
+  icon: chevrons-right
   color: black
 inputs:
   path:
