@@ -1,0 +1,12 @@
+{
+  "include": ["src"],
+  "exclude": ["**/*.test.ts"],
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "strict": true,
+    "module": "node16",
+    "moduleResolution": "node16",
+    "target": "es2022",
+    "skipLibCheck": true
+  }
+}
