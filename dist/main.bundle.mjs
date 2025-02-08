@@ -105,12 +105,15 @@ async function downloadPnpm(pnpmHome) {
     await downloadFile("https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64", pnpmFile);
     await fsPromises.chmod(pnpmFile, "755");
 }
+async function setupPnpm(pnpmHome) {
+    await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
+}
 
 try {
     const pnpmHome = await createPnpmHome();
     logInfo(`Downloading pnpm to ${pnpmHome}...`);
     await downloadPnpm(pnpmHome);
-    await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
+    await setupPnpm(pnpmHome);
 }
 catch (err) {
     logError(err);

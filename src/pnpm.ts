@@ -1,3 +1,4 @@
+import { addPath, setEnv } from "gha-utils";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { downloadFile } from "./download.js";
@@ -15,4 +16,8 @@ export async function downloadPnpm(pnpmHome: string): Promise<void> {
     pnpmFile,
   );
   await fsPromises.chmod(pnpmFile, "755");
+}
+
+export async function setupPnpm(pnpmHome: string): Promise<void> {
+  await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
 }

@@ -1,13 +1,12 @@
-import { addPath, logError, logInfo, setEnv } from "gha-utils";
-import { createPnpmHome, downloadPnpm } from "./pnpm.js";
+import { logError, logInfo } from "gha-utils";
+import { createPnpmHome, downloadPnpm, setupPnpm } from "./pnpm.js";
 
 try {
   const pnpmHome = await createPnpmHome();
 
   logInfo(`Downloading pnpm to ${pnpmHome}...`);
   await downloadPnpm(pnpmHome);
-
-  await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
+  await setupPnpm(pnpmHome);
 } catch (err) {
   logError(err);
   process.exitCode = 1;

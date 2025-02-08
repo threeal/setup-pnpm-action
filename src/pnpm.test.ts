@@ -1,7 +1,13 @@
+import { addPath, setEnv } from "gha-utils";
 import fsPromises from "node:fs/promises";
 import { expect, it, vi } from "vitest";
-import { createPnpmHome, downloadPnpm } from "./pnpm";
+import { createPnpmHome, downloadPnpm, setupPnpm } from "./pnpm";
 import { downloadFile } from "./download";
+
+vi.mock("gha-utils", () => ({
+  addPath: vi.fn().mockResolvedValue(undefined),
+  setEnv: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("node:fs/promises", () => ({
   default: {
@@ -31,4 +37,11 @@ it("should download pnpm", async () => {
     "/pnpm/pnpm",
   );
   expect(fsPromises.chmod).toBeCalledWith("/pnpm/pnpm", "755");
+});
+
+it("should setup pnpm", async () => {
+  await setupPnpm("/pnpm");
+
+  expect(addPath).toBeCalledWith("/pnpm");
+  expect(setEnv).toBeCalledWith("PNPM_HOME", "/pnpm");
 });
