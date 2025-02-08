@@ -1,11 +1,17 @@
 import fsPromises from "node:fs/promises";
 import { expect, it, vi } from "vitest";
-import { createPnpmHome } from "./pnpm";
+import { createPnpmHome, downloadPnpm } from "./pnpm";
+import { downloadFile } from "./download";
 
 vi.mock("node:fs/promises", () => ({
   default: {
+    chmod: vi.fn().mockResolvedValue(undefined),
     mkdir: vi.fn().mockResolvedValue(undefined),
   },
+}));
+
+vi.mock("./download.js", () => ({
+  downloadFile: vi.fn().mockResolvedValue(undefined),
 }));
 
 it("should create a pnpm home directory", async () => {
@@ -15,4 +21,14 @@ it("should create a pnpm home directory", async () => {
 
   expect(pnpmHome).toBe("/tool/pnpm");
   expect(fsPromises.mkdir).toBeCalledWith(pnpmHome);
+});
+
+it("should download pnpm", async () => {
+  await downloadPnpm("/pnpm");
+
+  expect(downloadFile).toBeCalledWith(
+    "https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64",
+    "/pnpm/pnpm",
+  );
+  expect(fsPromises.chmod).toBeCalledWith("/pnpm/pnpm", "755");
 });

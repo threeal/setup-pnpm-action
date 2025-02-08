@@ -100,13 +100,16 @@ async function createPnpmHome() {
     await fsPromises.mkdir(pnpmHome);
     return pnpmHome;
 }
+async function downloadPnpm(pnpmHome) {
+    const pnpmFile = path.join(pnpmHome, "pnpm");
+    await downloadFile("https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64", pnpmFile);
+    await fsPromises.chmod(pnpmFile, "755");
+}
 
 try {
     const pnpmHome = await createPnpmHome();
-    const pnpmFile = path.join(pnpmHome, "pnpm");
-    logInfo(`Downloading pnpm to ${pnpmFile}...`);
-    await downloadFile("https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64", pnpmFile);
-    await fsPromises.chmod(pnpmFile, "755");
+    logInfo(`Downloading pnpm to ${pnpmHome}...`);
+    await downloadPnpm(pnpmHome);
     await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
 }
 catch (err) {
