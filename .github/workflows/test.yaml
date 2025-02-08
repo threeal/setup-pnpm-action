@@ -16,17 +16,14 @@ jobs:
       - name: Checkout Action
         uses: actions/checkout@v4.2.2
         with:
-          path: mkdir-action
+          path: setup-pnpm-action
           sparse-checkout: |
             action.yml
             dist
           sparse-checkout-cone-mode: false
 
-      - name: Create Directory
-        uses: ./mkdir-action
-        with:
-          path: parent/child
+      - name: Setup pnpm
+        uses: ./setup-pnpm-action
 
-      - name: Check Directory
-        shell: bash
-        run: test -d parent/child
+      - name: Check pnpm
+        run: pnpm --version
