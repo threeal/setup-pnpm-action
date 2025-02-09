@@ -1,8 +1,13 @@
 import os from "node:os";
 import { describe, it, expect, vi } from "vitest";
-import { getPlatform } from "./platform.js";
+import { getArchitecture, getPlatform } from "./platform.js";
 
-vi.mock("node:os", () => ({ default: { platform: vi.fn() } }));
+vi.mock("node:os", () => ({
+  default: {
+    arch: vi.fn(),
+    platform: vi.fn(),
+  },
+}));
 
 describe("retrieve the platform", () => {
   it("should retrieve the platform on Linux", () => {
@@ -18,5 +23,22 @@ describe("retrieve the platform", () => {
   it("should fail to retrieve the platform", () => {
     vi.mocked(os.platform).mockReturnValue("android");
     expect(() => getPlatform()).toThrow("Unknown platform: android");
+  });
+});
+
+describe("retrieve the architecture", () => {
+  it("should retrieve the architecture on x64", () => {
+    vi.mocked(os.arch).mockReturnValue("x64");
+    expect(getArchitecture()).toBe("x64");
+  });
+
+  it("should retrieve the architecture on arm64", () => {
+    vi.mocked(os.arch).mockReturnValue("arm64");
+    expect(getArchitecture()).toBe("arm64");
+  });
+
+  it("should fail to retrieve the architecture", () => {
+    vi.mocked(os.arch).mockReturnValue("ia32");
+    expect(() => getArchitecture()).toThrow("Unknown architecture: ia32");
   });
 });

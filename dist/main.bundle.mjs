@@ -75,6 +75,16 @@ function getPlatform() {
             throw new Error(`Unknown platform: ${os.platform()}`);
     }
 }
+function getArchitecture() {
+    switch (os.arch()) {
+        case "x64":
+            return "x64";
+        case "arm64":
+            return "arm64";
+        default:
+            throw new Error(`Unknown architecture: ${os.arch()}`);
+    }
+}
 
 async function downloadFile(url, dest) {
     return new Promise((resolve, reject) => {
@@ -98,9 +108,9 @@ async function createPnpmHome() {
     await fsPromises.mkdir(pnpmHome);
     return pnpmHome;
 }
-async function downloadPnpm(pnpmHome, platform) {
+async function downloadPnpm(pnpmHome, platform, architecture) {
     const pnpmFile = path.join(pnpmHome, "pnpm");
-    await downloadFile(`https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-${platform}-x64`, pnpmFile);
+    await downloadFile(`https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-${platform}-${architecture}`, pnpmFile);
     await fsPromises.chmod(pnpmFile, "755");
 }
 async function setupPnpm(pnpmHome) {
@@ -109,9 +119,10 @@ async function setupPnpm(pnpmHome) {
 
 try {
     const platform = getPlatform();
+    const architecture = getArchitecture();
     const pnpmHome = await createPnpmHome();
     logInfo(`Downloading pnpm to ${pnpmHome}...`);
-    await downloadPnpm(pnpmHome, platform);
+    await downloadPnpm(pnpmHome, platform, architecture);
     await setupPnpm(pnpmHome);
 }
 catch (err) {

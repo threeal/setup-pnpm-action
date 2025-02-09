@@ -30,7 +30,7 @@ it("should create a pnpm home directory", async () => {
 });
 
 it("should download pnpm", async () => {
-  await downloadPnpm("/pnpm", "linux");
+  await downloadPnpm("/pnpm", "linux", "x64");
 
   expect(downloadFile).toBeCalledWith(
     "https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64",
