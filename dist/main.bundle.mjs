@@ -69,6 +69,8 @@ function getPlatform() {
     switch (os.platform()) {
         case "linux":
             return "linux";
+        case "darwin":
+            return "macos";
         default:
             throw new Error(`Unknown platform: ${os.platform()}`);
     }
