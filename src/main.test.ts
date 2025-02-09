@@ -7,6 +7,10 @@ vi.mock("gha-utils", () => ({
   logInfo: vi.fn(),
 }));
 
+vi.mock("./platform.js", () => ({
+  getPlatform: vi.fn().mockReturnValue("linux"),
+}));
+
 vi.mock("./pnpm.js", () => ({
   createPnpmHome: vi.fn().mockResolvedValue("/pnpm"),
   downloadPnpm: vi.fn().mockResolvedValue(undefined),
@@ -20,9 +24,12 @@ beforeEach(() => {
 it("should download pnpm", async () => {
   await import("./main.js");
 
+  expect(logError).not.toBeCalled();
+  expect(process.exitCode).toBeUndefined();
+
   expect(createPnpmHome).toBeCalled();
   expect(logInfo).toBeCalledWith("Downloading pnpm to /pnpm...");
-  expect(downloadPnpm).toBeCalledWith("/pnpm");
+  expect(downloadPnpm).toBeCalledWith("/pnpm", "linux");
   expect(setupPnpm).toBeCalledWith("/pnpm");
 });
 
