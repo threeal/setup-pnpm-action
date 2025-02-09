@@ -1,3 +1,4 @@
+import { logInfo } from "gha-utils";
 import https from "node:https";
 import fs from "node:fs";
 
@@ -23,6 +24,7 @@ export async function downloadFile(url: string, dest: string): Promise<void> {
 
           case 301:
           case 302:
+            logInfo(`Redirected to ${res.headers.location}`);
             downloadFile(res.headers.location!, dest)
               .then(resolve)
               .catch(reject);

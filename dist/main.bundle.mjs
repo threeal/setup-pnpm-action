@@ -83,6 +83,7 @@ async function downloadFile(url, dest) {
                 }
                 case 301:
                 case 302:
+                    logInfo(`Redirected to ${res.headers.location}`);
                     downloadFile(res.headers.location, dest)
                         .then(resolve)
                         .catch(reject);

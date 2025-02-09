@@ -23,3 +23,15 @@ jobs:
 
       - name: Check pnpm
         run: pnpm --version
+
+  test-curl:
+    name: Test Curl
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Setup pnpm
+        run: |
+          curl -L -v -o pnpm https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64
+          chmod +x pnpm
+
+      - name: Check pnpm
+        run: ./pnpm --version
