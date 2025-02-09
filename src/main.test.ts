@@ -8,6 +8,7 @@ vi.mock("gha-utils", () => ({
 }));
 
 vi.mock("./platform.js", () => ({
+  getArchitecture: vi.fn().mockReturnValue("x64"),
   getPlatform: vi.fn().mockReturnValue("linux"),
 }));
 
@@ -29,7 +30,7 @@ it("should download pnpm", async () => {
 
   expect(createPnpmHome).toBeCalled();
   expect(logInfo).toBeCalledWith("Downloading pnpm to /pnpm...");
-  expect(downloadPnpm).toBeCalledWith("/pnpm", "linux");
+  expect(downloadPnpm).toBeCalledWith("/pnpm", "linux", "x64");
   expect(setupPnpm).toBeCalledWith("/pnpm");
 });
 
