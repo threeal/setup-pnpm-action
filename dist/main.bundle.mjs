@@ -65,6 +65,15 @@ function logError(err) {
     process.stdout.write(`::error::${message}${os.EOL}`);
 }
 
+function getPlatform() {
+    switch (os.platform()) {
+        case "linux":
+            return "linux";
+        default:
+            throw new Error(`Unknown platform: ${os.platform()}`);
+    }
+}
+
 async function downloadFile(url, dest) {
     return new Promise((resolve, reject) => {
         https
@@ -100,9 +109,9 @@ async function createPnpmHome() {
     await fsPromises.mkdir(pnpmHome);
     return pnpmHome;
 }
-async function downloadPnpm(pnpmHome) {
+async function downloadPnpm(pnpmHome, platform) {
     const pnpmFile = path.join(pnpmHome, "pnpm");
-    await downloadFile("https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64", pnpmFile);
+    await downloadFile(`https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-${platform}-x64`, pnpmFile);
     await fsPromises.chmod(pnpmFile, "755");
 }
 async function setupPnpm(pnpmHome) {
@@ -110,9 +119,10 @@ async function setupPnpm(pnpmHome) {
 }
 
 try {
+    const platform = getPlatform();
     const pnpmHome = await createPnpmHome();
     logInfo(`Downloading pnpm to ${pnpmHome}...`);
-    await downloadPnpm(pnpmHome);
+    await downloadPnpm(pnpmHome, platform);
     await setupPnpm(pnpmHome);
 }
 catch (err) {
