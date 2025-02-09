@@ -32,6 +32,11 @@ describe("retrieve the architecture", () => {
     expect(getArchitecture()).toBe("x64");
   });
 
+  it("should retrieve the architecture on arm64", () => {
+    vi.mocked(os.arch).mockReturnValue("arm64");
+    expect(getArchitecture()).toBe("arm64");
+  });
+
   it("should fail to retrieve the architecture", () => {
     vi.mocked(os.arch).mockReturnValue("ia32");
     expect(() => getArchitecture()).toThrow("Unknown architecture: ia32");
