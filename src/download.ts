@@ -1,37 +1,19 @@
-import https from "node:https";
-import fs from "node:fs";
+import { spawn } from "node:child_process";
 
 export async function downloadFile(url: string, dest: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    https
-      .get(url, (res) => {
-        switch (res.statusCode) {
-          case 200: {
-            const file = fs.createWriteStream(dest);
+    const curl = spawn("curl", ["-fLSs", "--output", dest, url]);
 
-            res.pipe(file);
+    const chunks: Uint8Array[] = [];
+    curl.stderr?.on("data", (chunk) => chunks.push(chunk));
 
-            file.on("finish", () => {
-              file.close(() => {
-                resolve();
-              });
-            });
-
-            file.on("error", reject);
-            break;
-          }
-
-          case 301:
-          case 302:
-            downloadFile(res.headers.location!, dest)
-              .then(resolve)
-              .catch(reject);
-            break;
-
-          default:
-            reject(new Error(res.statusMessage));
-        }
-      })
-      .on("error", reject);
+    curl.on("error", reject);
+    curl.on("close", (code) => {
+      if (code === 0) {
+        resolve(undefined);
+      } else {
+        reject(new Error(Buffer.concat(chunks).toString().trim()));
+      }
+    });
   });
 }

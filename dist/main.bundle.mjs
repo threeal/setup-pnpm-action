@@ -1,8 +1,8 @@
-import fs from 'node:fs';
+import 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import https from 'node:https';
+import { spawn } from 'node:child_process';
 
 /**
  * @internal
@@ -78,31 +78,18 @@ function getPlatform() {
 
 async function downloadFile(url, dest) {
     return new Promise((resolve, reject) => {
-        https
-            .get(url, (res) => {
-            switch (res.statusCode) {
-                case 200: {
-                    const file = fs.createWriteStream(dest);
-                    res.pipe(file);
-                    file.on("finish", () => {
-                        file.close(() => {
-                            resolve();
-                        });
-                    });
-                    file.on("error", reject);
-                    break;
-                }
-                case 301:
-                case 302:
-                    downloadFile(res.headers.location, dest)
-                        .then(resolve)
-                        .catch(reject);
-                    break;
-                default:
-                    reject(new Error(res.statusMessage));
+        const curl = spawn("curl", ["-fLSs", "--output", dest, url]);
+        const chunks = [];
+        curl.stderr?.on("data", (chunk) => chunks.push(chunk));
+        curl.on("error", reject);
+        curl.on("close", (code) => {
+            if (code === 0) {
+                resolve(undefined);
             }
-        })
-            .on("error", reject);
+            else {
+                reject(new Error(Buffer.concat(chunks).toString().trim()));
+            }
+        });
     });
 }
 
