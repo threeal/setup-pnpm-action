@@ -16,9 +16,10 @@ export async function downloadPnpm(
   platform: Platform,
   architecture: Architecture,
 ): Promise<void> {
-  const pnpmFile = path.join(pnpmHome, "pnpm");
+  const ext = platform === "win" ? ".exe" : "";
+  const pnpmFile = path.join(pnpmHome, `pnpm${ext}`);
   await downloadFile(
-    `https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${platform}-${architecture}`,
+    `https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${platform}-${architecture}${ext}`,
     pnpmFile,
   );
   await fsPromises.chmod(pnpmFile, "755");

@@ -81,6 +81,8 @@ function getPlatform() {
             return "linux";
         case "darwin":
             return "macos";
+        case "win32":
+            return "win";
         default:
             throw new Error(`Unknown platform: ${os.platform()}`);
     }
@@ -119,8 +121,9 @@ async function createPnpmHome(version) {
     return pnpmHome;
 }
 async function downloadPnpm(pnpmHome, version, platform, architecture) {
-    const pnpmFile = path.join(pnpmHome, "pnpm");
-    await downloadFile(`https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${platform}-${architecture}`, pnpmFile);
+    const ext = platform === "win" ? ".exe" : "";
+    const pnpmFile = path.join(pnpmHome, `pnpm${ext}`);
+    await downloadFile(`https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${platform}-${architecture}${ext}`, pnpmFile);
     await fsPromises.chmod(pnpmFile, "755");
 }
 async function setupPnpm(pnpmHome) {

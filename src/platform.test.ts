@@ -20,6 +20,11 @@ describe("retrieve the platform", () => {
     expect(getPlatform()).toBe("macos");
   });
 
+  it("should retrieve the platform on Windows", () => {
+    vi.mocked(os.platform).mockReturnValue("win32");
+    expect(getPlatform()).toBe("win");
+  });
+
   it("should fail to retrieve the platform", () => {
     vi.mocked(os.platform).mockReturnValue("android");
     expect(() => getPlatform()).toThrow("Unknown platform: android");
