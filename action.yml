@@ -7,7 +7,7 @@ branding:
 inputs:
   version:
     description: The pnpm version to set up
-    default: 10.2.1
+    default: latest
 runs:
   using: node20
   main: dist/main.bundle.mjs
