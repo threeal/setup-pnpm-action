@@ -1,9 +1,9 @@
-import { getInput, logError, logInfo } from "gha-utils";
+import { logError, logInfo } from "gha-utils";
 import { beforeEach, expect, it, vi } from "vitest";
 import { createPnpmHome, downloadPnpm, setupPnpm } from "./pnpm.js";
 
 vi.mock("gha-utils", () => ({
-  getInput: vi.fn().mockReturnValue(""),
+  getInput: vi.fn().mockReturnValue("10.2.1"),
   logError: vi.fn(),
   logInfo: vi.fn(),
 }));
@@ -32,20 +32,6 @@ it("should download pnpm", async () => {
   expect(createPnpmHome).toBeCalledWith("10.2.1");
   expect(logInfo).toBeCalledWith("Downloading pnpm to /pnpm...");
   expect(downloadPnpm).toBeCalledWith("/pnpm", "10.2.1", "linux", "x64");
-  expect(setupPnpm).toBeCalledWith("/pnpm");
-});
-
-it("should download pnpm with a specified version", async () => {
-  vi.mocked(getInput).mockReturnValue("9.15.5");
-
-  await import("./main.js");
-
-  expect(logError).not.toBeCalled();
-  expect(process.exitCode).toBeUndefined();
-
-  expect(createPnpmHome).toBeCalledWith("9.15.5");
-  expect(logInfo).toBeCalledWith("Downloading pnpm to /pnpm...");
-  expect(downloadPnpm).toBeCalledWith("/pnpm", "9.15.5", "linux", "x64");
   expect(setupPnpm).toBeCalledWith("/pnpm");
 });
 
