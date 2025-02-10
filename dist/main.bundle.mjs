@@ -131,9 +131,7 @@ async function setupPnpm(pnpmHome) {
 }
 
 try {
-    let version = getInput("version");
-    if (version === "")
-        version = "10.2.1";
+    const version = getInput("version");
     const platform = getPlatform();
     const architecture = getArchitecture();
     const pnpmHome = await createPnpmHome(version);
