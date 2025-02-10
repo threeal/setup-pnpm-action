@@ -20,6 +20,16 @@ function mustGetEnvironment(name) {
     return value;
 }
 /**
+ * Retrieves the value of a GitHub Actions input.
+ *
+ * @param name - The name of the GitHub Actions input.
+ * @returns The value of the GitHub Actions input, or an empty string if not found.
+ */
+function getInput(name) {
+    const value = process.env[`INPUT_${name.toUpperCase()}`] ?? "";
+    return value.trim();
+}
+/**
  * Sets the value of an environment variable in GitHub Actions.
  *
  * @param name - The name of the environment variable.
@@ -103,14 +113,14 @@ async function downloadFile(url, dest) {
     });
 }
 
-async function createPnpmHome() {
-    const pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE, "pnpm");
-    await fsPromises.mkdir(pnpmHome);
+async function createPnpmHome(version) {
+    const pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE, "pnpm", version);
+    await fsPromises.mkdir(pnpmHome, { recursive: true });
     return pnpmHome;
 }
-async function downloadPnpm(pnpmHome, platform, architecture) {
+async function downloadPnpm(pnpmHome, version, platform, architecture) {
     const pnpmFile = path.join(pnpmHome, "pnpm");
-    await downloadFile(`https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-${platform}-${architecture}`, pnpmFile);
+    await downloadFile(`https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${platform}-${architecture}`, pnpmFile);
     await fsPromises.chmod(pnpmFile, "755");
 }
 async function setupPnpm(pnpmHome) {
@@ -118,11 +128,14 @@ async function setupPnpm(pnpmHome) {
 }
 
 try {
+    let version = getInput("version");
+    if (version === "")
+        version = "10.2.1";
     const platform = getPlatform();
     const architecture = getArchitecture();
-    const pnpmHome = await createPnpmHome();
+    const pnpmHome = await createPnpmHome(version);
     logInfo(`Downloading pnpm to ${pnpmHome}...`);
-    await downloadPnpm(pnpmHome, platform, architecture);
+    await downloadPnpm(pnpmHome, version, platform, architecture);
     await setupPnpm(pnpmHome);
 }
 catch (err) {

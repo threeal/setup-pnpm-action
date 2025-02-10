@@ -4,6 +4,9 @@ description: Set up pnpm with a specified version
 branding:
   icon: chevrons-right
   color: black
+inputs:
+  version:
+    description: The pnpm version to set up
 runs:
   using: node20
   main: dist/main.bundle.mjs

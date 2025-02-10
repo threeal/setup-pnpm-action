@@ -27,3 +27,11 @@ jobs:
 
       - name: Check pnpm
         run: pnpm --version
+
+      - name: Setup pnpm With a Specified Version
+        uses: ./setup-pnpm-action
+        with:
+          version: 9.15.5
+
+      - name: Check pnpm
+        run: pnpm --version

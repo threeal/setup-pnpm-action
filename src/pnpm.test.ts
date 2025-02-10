@@ -23,14 +23,14 @@ vi.mock("./download.js", () => ({
 it("should create a pnpm home directory", async () => {
   process.env.RUNNER_TOOL_CACHE = "/tool";
 
-  const pnpmHome = await createPnpmHome();
+  const pnpmHome = await createPnpmHome("10.2.1");
 
-  expect(pnpmHome).toBe("/tool/pnpm");
-  expect(fsPromises.mkdir).toBeCalledWith(pnpmHome);
+  expect(pnpmHome).toBe("/tool/pnpm/10.2.1");
+  expect(fsPromises.mkdir).toBeCalledWith(pnpmHome, { recursive: true });
 });
 
 it("should download pnpm", async () => {
-  await downloadPnpm("/pnpm", "linux", "x64");
+  await downloadPnpm("/pnpm", "10.2.1", "linux", "x64");
 
   expect(downloadFile).toBeCalledWith(
     "https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64",
