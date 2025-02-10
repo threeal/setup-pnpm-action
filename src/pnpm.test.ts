@@ -1,7 +1,14 @@
 import { addPath, setEnv } from "gha-utils";
 import fsPromises from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { createPnpmHome, downloadPnpm, setupPnpm } from "./pnpm";
+
+import {
+  createPnpmHome,
+  downloadPnpm,
+  resolvePnpmVersion,
+  setupPnpm,
+} from "./pnpm";
+
 import { downloadFile } from "./download";
 
 vi.mock("gha-utils", () => ({
@@ -27,6 +34,22 @@ it("should create a pnpm home directory", async () => {
 
   expect(pnpmHome).toBe("/tool/pnpm/10.2.1");
   expect(fsPromises.mkdir).toBeCalledWith(pnpmHome, { recursive: true });
+});
+
+describe("resolve pnpm version", () => {
+  it("should resolve pnpm version", async () => {
+    await expect(resolvePnpmVersion("10.2.1")).resolves.toBe("10.2.1");
+  });
+
+  it("should resolve pnpm version using tag", async () => {
+    await expect(resolvePnpmVersion("latest")).resolves.not.toThrow();
+  });
+
+  it("should not resolve pnpm version", async () => {
+    await expect(resolvePnpmVersion("invalid")).rejects.toThrow(
+      "Unknown version: invalid",
+    );
+  });
 });
 
 describe("download pnpm", () => {

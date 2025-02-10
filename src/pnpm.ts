@@ -10,6 +10,20 @@ export async function createPnpmHome(version: string): Promise<string> {
   return pnpmHome;
 }
 
+export async function resolvePnpmVersion(version: string): Promise<string> {
+  const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
+  if (res.ok) {
+    const data = await res.json();
+    if ("dist-tags" in data && version in data["dist-tags"]) {
+      return data["dist-tags"][version];
+    }
+    if ("versions" in data && version in data["versions"]) {
+      return version;
+    }
+  }
+  throw new Error(`Unknown version: ${version}`);
+}
+
 export async function downloadPnpm(
   pnpmHome: string,
   version: string,

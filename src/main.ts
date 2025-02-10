@@ -1,9 +1,15 @@
 import { getInput, logError, logInfo } from "gha-utils";
 import { getArchitecture, getPlatform } from "./platform.js";
-import { createPnpmHome, downloadPnpm, setupPnpm } from "./pnpm.js";
+
+import {
+  createPnpmHome,
+  downloadPnpm,
+  resolvePnpmVersion,
+  setupPnpm,
+} from "./pnpm.js";
 
 try {
-  const version = getInput("version");
+  const version = await resolvePnpmVersion(getInput("version"));
   const platform = getPlatform();
   const architecture = getArchitecture();
   const pnpmHome = await createPnpmHome(version);
