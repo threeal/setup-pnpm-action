@@ -8,7 +8,7 @@ try {
   const pnpmHome = await createPnpmHome();
 
   logInfo(`Downloading pnpm to ${pnpmHome}...`);
-  await downloadPnpm(pnpmHome, platform, architecture);
+  await downloadPnpm(pnpmHome, "10.2.1", platform, architecture);
   await setupPnpm(pnpmHome);
 } catch (err) {
   logError(err);

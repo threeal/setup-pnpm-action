@@ -30,7 +30,7 @@ it("should download pnpm", async () => {
 
   expect(createPnpmHome).toBeCalled();
   expect(logInfo).toBeCalledWith("Downloading pnpm to /pnpm...");
-  expect(downloadPnpm).toBeCalledWith("/pnpm", "linux", "x64");
+  expect(downloadPnpm).toBeCalledWith("/pnpm", "10.2.1", "linux", "x64");
   expect(setupPnpm).toBeCalledWith("/pnpm");
 });
 

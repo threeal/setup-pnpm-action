@@ -12,12 +12,13 @@ export async function createPnpmHome(): Promise<string> {
 
 export async function downloadPnpm(
   pnpmHome: string,
+  version: string,
   platform: Platform,
   architecture: Architecture,
 ): Promise<void> {
   const pnpmFile = path.join(pnpmHome, "pnpm");
   await downloadFile(
-    `https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-${platform}-${architecture}`,
+    `https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${platform}-${architecture}`,
     pnpmFile,
   );
   await fsPromises.chmod(pnpmFile, "755");
