@@ -20,6 +20,16 @@ function mustGetEnvironment(name) {
     return value;
 }
 /**
+ * Retrieves the value of a GitHub Actions input.
+ *
+ * @param name - The name of the GitHub Actions input.
+ * @returns The value of the GitHub Actions input, or an empty string if not found.
+ */
+function getInput(name) {
+    const value = process.env[`INPUT_${name.toUpperCase()}`] ?? "";
+    return value.trim();
+}
+/**
  * Sets the value of an environment variable in GitHub Actions.
  *
  * @param name - The name of the environment variable.
@@ -118,11 +128,14 @@ async function setupPnpm(pnpmHome) {
 }
 
 try {
+    let version = getInput("version");
+    if (version === "")
+        version = "10.2.1";
     const platform = getPlatform();
     const architecture = getArchitecture();
     const pnpmHome = await createPnpmHome();
     logInfo(`Downloading pnpm to ${pnpmHome}...`);
-    await downloadPnpm(pnpmHome, "10.2.1", platform, architecture);
+    await downloadPnpm(pnpmHome, version, platform, architecture);
     await setupPnpm(pnpmHome);
 }
 catch (err) {
