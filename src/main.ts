@@ -8,7 +8,7 @@ try {
 
   const platform = getPlatform();
   const architecture = getArchitecture();
-  const pnpmHome = await createPnpmHome();
+  const pnpmHome = await createPnpmHome(version);
 
   logInfo(`Downloading pnpm to ${pnpmHome}...`);
   await downloadPnpm(pnpmHome, version, platform, architecture);

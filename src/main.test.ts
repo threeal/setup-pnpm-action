@@ -29,7 +29,7 @@ it("should download pnpm", async () => {
   expect(logError).not.toBeCalled();
   expect(process.exitCode).toBeUndefined();
 
-  expect(createPnpmHome).toBeCalled();
+  expect(createPnpmHome).toBeCalledWith("10.2.1");
   expect(logInfo).toBeCalledWith("Downloading pnpm to /pnpm...");
   expect(downloadPnpm).toBeCalledWith("/pnpm", "10.2.1", "linux", "x64");
   expect(setupPnpm).toBeCalledWith("/pnpm");
@@ -43,7 +43,7 @@ it("should download pnpm with a specified version", async () => {
   expect(logError).not.toBeCalled();
   expect(process.exitCode).toBeUndefined();
 
-  expect(createPnpmHome).toBeCalled();
+  expect(createPnpmHome).toBeCalledWith("9.15.5");
   expect(logInfo).toBeCalledWith("Downloading pnpm to /pnpm...");
   expect(downloadPnpm).toBeCalledWith("/pnpm", "9.15.5", "linux", "x64");
   expect(setupPnpm).toBeCalledWith("/pnpm");

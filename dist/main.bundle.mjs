@@ -113,9 +113,9 @@ async function downloadFile(url, dest) {
     });
 }
 
-async function createPnpmHome() {
-    const pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE, "pnpm");
-    await fsPromises.mkdir(pnpmHome);
+async function createPnpmHome(version) {
+    const pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE, "pnpm", version);
+    await fsPromises.mkdir(pnpmHome, { recursive: true });
     return pnpmHome;
 }
 async function downloadPnpm(pnpmHome, version, platform, architecture) {
@@ -133,7 +133,7 @@ try {
         version = "10.2.1";
     const platform = getPlatform();
     const architecture = getArchitecture();
-    const pnpmHome = await createPnpmHome();
+    const pnpmHome = await createPnpmHome(version);
     logInfo(`Downloading pnpm to ${pnpmHome}...`);
     await downloadPnpm(pnpmHome, version, platform, architecture);
     await setupPnpm(pnpmHome);

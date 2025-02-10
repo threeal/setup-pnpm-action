@@ -4,9 +4,9 @@ import path from "node:path";
 import { downloadFile } from "./download.js";
 import type { Architecture, Platform } from "./platform.js";
 
-export async function createPnpmHome(): Promise<string> {
-  const pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE!, "pnpm");
-  await fsPromises.mkdir(pnpmHome);
+export async function createPnpmHome(version: string): Promise<string> {
+  const pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE!, "pnpm", version);
+  await fsPromises.mkdir(pnpmHome, { recursive: true });
   return pnpmHome;
 }
 
