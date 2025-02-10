@@ -1,6 +1,6 @@
 import os from "node:os";
 
-export type Platform = "linux" | "macos";
+export type Platform = "linux" | "macos" | "win";
 export type Architecture = "x64" | "arm64";
 
 export function getPlatform(): Platform {
@@ -9,6 +9,8 @@ export function getPlatform(): Platform {
       return "linux";
     case "darwin":
       return "macos";
+    case "win32":
+      return "win";
     default:
       throw new Error(`Unknown platform: ${os.platform()}`);
   }
