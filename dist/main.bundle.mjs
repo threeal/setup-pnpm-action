@@ -120,6 +120,19 @@ async function createPnpmHome(version) {
     await fsPromises.mkdir(pnpmHome, { recursive: true });
     return pnpmHome;
 }
+async function resolvePnpmVersion(version) {
+    const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
+    if (res.ok) {
+        const data = await res.json();
+        if ("dist-tags" in data && version in data["dist-tags"]) {
+            return data["dist-tags"][version];
+        }
+        if ("versions" in data && version in data["versions"]) {
+            return version;
+        }
+    }
+    throw new Error(`Unknown version: ${version}`);
+}
 async function downloadPnpm(pnpmHome, version, platform, architecture) {
     const ext = platform === "win" ? ".exe" : "";
     const pnpmFile = path.join(pnpmHome, `pnpm${ext}`);
@@ -131,7 +144,7 @@ async function setupPnpm(pnpmHome) {
 }
 
 try {
-    const version = getInput("version");
+    const version = await resolvePnpmVersion(getInput("version"));
     const platform = getPlatform();
     const architecture = getArchitecture();
     const pnpmHome = await createPnpmHome(version);
