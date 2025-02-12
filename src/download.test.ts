@@ -38,7 +38,7 @@ it("should fail to download a file", async () => {
       "https://raw.githubusercontent.com/pnpm/pnpm/refs/heads/main/LICENSEe",
       path.join(tempDir, "LICENSEe"),
     ),
-  ).rejects.toThrow("curl: (22) The requested URL returned error: 404");
+  ).rejects.toThrow("The requested URL returned error: 404");
 });
 
 afterAll(async () => {
