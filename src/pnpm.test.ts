@@ -36,7 +36,7 @@ it("should create a pnpm home directory", async () => {
   expect(fsPromises.mkdir).toBeCalledWith(pnpmHome, { recursive: true });
 });
 
-describe("resolve pnpm version", () => {
+describe("resolve pnpm version", { concurrent: true }, () => {
   it("should resolve pnpm version", async () => {
     await expect(resolvePnpmVersion("10.2.1")).resolves.toBe("10.2.1");
   });
