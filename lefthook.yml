@@ -1,17 +1,17 @@
 pre-commit:
   jobs:
-    - run: prettier --write --cache --ignore-unknown {staged_files}
+    - run: pnpm prettier --write --cache --ignore-unknown {staged_files}
       stage_fixed: true
 
-    - run: eslint --no-warn-ignored {staged_files}
+    - run: pnpm eslint --no-warn-ignored {staged_files}
 
-    - run: rollup -c && git add dist
+    - run: pnpm rollup -c && git add dist
       glob:
         - dist/*
         - src/*.ts
         - rollup.config.js
         - tsconfig.json
-        - yarn.lock
+        - pnpm-lock.yaml
       exclude:
         - src/*.test.ts
       stage_fixed: true
