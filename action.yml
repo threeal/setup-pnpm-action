@@ -1,6 +1,6 @@
-name: Setup pnpm Action
+name: Setup Standalone pnpm
 author: Alfi Maulana
-description: Set up pnpm with a specified version
+description: Set up standalone pnpm with a specified version
 branding:
   icon: chevrons-right
   color: black
