@@ -1,6 +1,6 @@
-# Setup pnpm Action
+# Setup Standalone pnpm Action
 
-Set up [pnpm](https://pnpm.io/) with a specified version in [GitHub Actions](https://github.com/features/actions).
+Set up standalone [pnpm](https://pnpm.io/) with a specified version in [GitHub Actions](https://github.com/features/actions).
 
 This action installs the standalone version of pnpm from the [GitHub releases](https://github.com/pnpm/pnpm/releases) page, allowing pnpm to be used as both a package manager and a Node.js version manager (see [pnpm env](https://pnpm.io/cli/env)).
 
@@ -14,7 +14,7 @@ The following input parameters are available for this action:
 
 ## Example Usage
 
-Here's a basic example of how to use this action to set up the latest version of pnpm in a GitHub Actions workflow:
+Here's a basic example of how to use this action to set up the latest version of standalone pnpm in a GitHub Actions workflow:
 
 ```yaml
 name: CI
