@@ -36,7 +36,7 @@
       "lefthook"
     ],
     "executionEnv": {
-      "nodeVersion": "23.7.0"
+      "nodeVersion": "23.8.0"
     }
   }
 }
