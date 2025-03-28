@@ -34,9 +34,6 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "lefthook"
-    ],
-    "executionEnv": {
-      "nodeVersion": "23.9.0"
-    }
+    ]
   }
 }
