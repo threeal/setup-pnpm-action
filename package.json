@@ -30,11 +30,5 @@
   "engines": {
     "node": ">=23",
     "pnpm": ">=10"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lefthook"
-    ]
   }
 }
