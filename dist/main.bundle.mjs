@@ -124,11 +124,23 @@ async function resolvePnpmVersion(version) {
     const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
     if (res.ok) {
         const data = await res.json();
-        if ("dist-tags" in data && version in data["dist-tags"]) {
-            return data["dist-tags"][version];
-        }
-        if ("versions" in data && version in data["versions"]) {
-            return version;
+        if (typeof data === "object" && data !== null) {
+            if ("dist-tags" in data &&
+                typeof data["dist-tags"] === "object" &&
+                data["dist-tags"] !== null) {
+                const distTags = data["dist-tags"];
+                if (version in distTags && typeof distTags[version] === "string") {
+                    return distTags[version];
+                }
+            }
+            if ("versions" in data &&
+                typeof data.versions === "object" &&
+                data.versions !== null) {
+                const versions = data.versions;
+                if (version in versions) {
+                    return version;
+                }
+            }
         }
     }
     throw new Error(`Unknown version: ${version}`);
