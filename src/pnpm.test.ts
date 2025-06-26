@@ -7,9 +7,9 @@ import {
   downloadPnpm,
   resolvePnpmVersion,
   setupPnpm,
-} from "./pnpm";
+} from "./pnpm.js";
 
-import { downloadFile } from "./download";
+import { downloadFile } from "./download.js";
 
 vi.mock("gha-utils", () => ({
   addPath: vi.fn().mockResolvedValue(undefined),
