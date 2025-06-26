@@ -16,7 +16,7 @@ vi.mock("./platform.js", () => ({
 vi.mock("./pnpm.js", () => ({
   createPnpmHome: vi.fn().mockResolvedValue("/pnpm"),
   downloadPnpm: vi.fn().mockResolvedValue(undefined),
-  resolvePnpmVersion: vi.fn().mockImplementation(async (version) => version),
+  resolvePnpmVersion: vi.fn().mockImplementation((version: string) => version),
   setupPnpm: vi.fn().mockResolvedValue(undefined),
 }));
 
