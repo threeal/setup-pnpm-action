@@ -5,7 +5,7 @@ export async function downloadFile(url: string, dest: string): Promise<void> {
     const curl = spawn("curl", ["-fLSs", "--output", dest, url]);
 
     const chunks: Uint8Array[] = [];
-    curl.stderr?.on("data", (chunk) => chunks.push(chunk));
+    curl.stderr.on("data", (chunk: Buffer) => chunks.push(chunk));
 
     curl.on("error", reject);
     curl.on("close", (code) => {

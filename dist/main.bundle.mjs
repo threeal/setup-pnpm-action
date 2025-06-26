@@ -102,7 +102,7 @@ async function downloadFile(url, dest) {
     return new Promise((resolve, reject) => {
         const curl = spawn("curl", ["-fLSs", "--output", dest, url]);
         const chunks = [];
-        curl.stderr?.on("data", (chunk) => chunks.push(chunk));
+        curl.stderr.on("data", (chunk) => chunks.push(chunk));
         curl.on("error", reject);
         curl.on("close", (code) => {
             if (code === 0) {
@@ -116,7 +116,10 @@ async function downloadFile(url, dest) {
 }
 
 async function createPnpmHome(version) {
-    const pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE, "pnpm", version);
+    let pnpmHome = path.join("pnpm", version);
+    if (process.env.RUNNER_TOOL_CACHE) {
+        pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE, "pnpm", version);
+    }
     await fsPromises.mkdir(pnpmHome, { recursive: true });
     return pnpmHome;
 }
