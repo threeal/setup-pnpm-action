@@ -21,7 +21,6 @@ jobs:
           - macos-13
           - windows-2025
           - windows-2022
-          - windows-2019
     steps:
       - name: Checkout Action
         uses: actions/checkout@v4.2.2
