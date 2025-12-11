@@ -116,10 +116,8 @@ async function downloadFile(url, dest) {
 }
 
 async function createPnpmHome(version) {
-    let pnpmHome = path.join("pnpm", version);
-    if (process.env.RUNNER_TOOL_CACHE) {
-        pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE, "pnpm", version);
-    }
+    const slug = [process.env.RUNNER_TOOL_CACHE, "pnpm", version];
+    const pnpmHome = path.join(...slug.filter((s) => s !== undefined));
     await fsPromises.mkdir(pnpmHome, { recursive: true });
     return pnpmHome;
 }
