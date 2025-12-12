@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createPnpmHome,
   downloadPnpm,
+  parsePnpmVersionsRegistry,
   resolvePnpmVersion,
   setupPnpm,
 } from "./pnpm.js";
@@ -34,6 +35,43 @@ it("should create a pnpm home directory", async () => {
 
   expect(pnpmHome).toBe("/tool/pnpm/10.2.1");
   expect(fsPromises.mkdir).toBeCalledWith(pnpmHome, { recursive: true });
+});
+
+describe("parse pnpm versions registry", { concurrent: true }, () => {
+  it("should parse valid registry", () => {
+    const versionsRegistry = parsePnpmVersionsRegistry({
+      "dist-tags": {
+        latest: "1.0.0",
+      },
+      versions: {
+        "1.0.0": {},
+        "0.1.0": {},
+      },
+    });
+
+    expect(versionsRegistry).toStrictEqual({
+      latest: "1.0.0",
+      "1.0.0": "1.0.0",
+      "0.1.0": "0.1.0",
+    });
+  });
+
+  it("should parse invalid registries", () => {
+    const datas = [
+      null,
+      {},
+      {
+        "dist-tags": {
+          latest: null,
+        },
+      },
+    ];
+
+    for (const data of datas) {
+      const versionsRegistry = parsePnpmVersionsRegistry(data);
+      expect(versionsRegistry).toStrictEqual({});
+    }
+  });
 });
 
 describe("resolve pnpm version", { concurrent: true }, () => {

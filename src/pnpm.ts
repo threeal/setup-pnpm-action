@@ -11,35 +11,50 @@ export async function createPnpmHome(version: string): Promise<string> {
   return pnpmHome;
 }
 
-export async function resolvePnpmVersion(version: string): Promise<string> {
-  const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
-  if (res.ok) {
-    const data = await res.json();
-    if (typeof data === "object" && data !== null) {
-      if (
-        "dist-tags" in data &&
-        typeof data["dist-tags"] === "object" &&
-        data["dist-tags"] !== null
-      ) {
-        const distTags = data["dist-tags"] as Record<string, unknown>;
-        if (version in distTags && typeof distTags[version] === "string") {
-          return distTags[version];
-        }
-      }
-
-      if (
-        "versions" in data &&
-        typeof data.versions === "object" &&
-        data.versions !== null
-      ) {
-        const versions = data.versions as Record<string, unknown>;
-        if (version in versions) {
-          return version;
+export function parsePnpmVersionsRegistry(
+  data: unknown,
+): Record<string, string> {
+  const versionsRegistry: Record<string, string> = {};
+  if (typeof data === "object" && data !== null) {
+    if (
+      "dist-tags" in data &&
+      typeof data["dist-tags"] === "object" &&
+      data["dist-tags"] !== null
+    ) {
+      const distTags = data["dist-tags"] as Record<string, unknown>;
+      for (const tag in distTags) {
+        if (typeof distTags[tag] === "string") {
+          versionsRegistry[tag] = distTags[tag];
         }
       }
     }
+
+    if (
+      "versions" in data &&
+      typeof data.versions === "object" &&
+      data.versions !== null
+    ) {
+      for (const version in data.versions) {
+        versionsRegistry[version] = version;
+      }
+    }
   }
-  throw new Error(`Unknown version: ${version}`);
+  return versionsRegistry;
+}
+
+export async function resolvePnpmVersion(version: string): Promise<string> {
+  const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
+  if (!res.ok) {
+    throw new Error(`Failed to fetch version registry: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  const versionsRegistry = parsePnpmVersionsRegistry(data);
+  if (version in versionsRegistry) {
+    return versionsRegistry[version];
+  } else {
+    throw new Error(`Unknown version: ${version}`);
+  }
 }
 
 export async function downloadPnpm(
