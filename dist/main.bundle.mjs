@@ -116,37 +116,50 @@ async function downloadFile(url, dest) {
 }
 
 async function createPnpmHome(version) {
-    let pnpmHome = path.join("pnpm", version);
-    if (process.env.RUNNER_TOOL_CACHE) {
-        pnpmHome = path.join(process.env.RUNNER_TOOL_CACHE, "pnpm", version);
-    }
+    const slug = [process.env.RUNNER_TOOL_CACHE, "pnpm", version];
+    const pnpmHome = path.join(...slug.filter((s) => s !== undefined));
     await fsPromises.mkdir(pnpmHome, { recursive: true });
     return pnpmHome;
 }
-async function resolvePnpmVersion(version) {
-    const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
-    if (res.ok) {
-        const data = await res.json();
-        if (typeof data === "object" && data !== null) {
-            if ("dist-tags" in data &&
-                typeof data["dist-tags"] === "object" &&
-                data["dist-tags"] !== null) {
-                const distTags = data["dist-tags"];
-                if (version in distTags && typeof distTags[version] === "string") {
-                    return distTags[version];
-                }
-            }
-            if ("versions" in data &&
-                typeof data.versions === "object" &&
-                data.versions !== null) {
-                const versions = data.versions;
-                if (version in versions) {
-                    return version;
+function parsePnpmVersionsRegistry(data) {
+    const registry = {};
+    if (typeof data === "object" && data !== null) {
+        if ("dist-tags" in data &&
+            typeof data["dist-tags"] === "object" &&
+            data["dist-tags"] !== null) {
+            const distTags = data["dist-tags"];
+            for (const tag in distTags) {
+                if (typeof distTags[tag] === "string") {
+                    registry[tag] = distTags[tag];
                 }
             }
         }
+        if ("versions" in data &&
+            typeof data.versions === "object" &&
+            data.versions !== null) {
+            for (const version in data.versions) {
+                registry[version] = version;
+            }
+        }
     }
-    throw new Error(`Unknown version: ${version}`);
+    return registry;
+}
+async function fetchPnpmVersionsRegistry(url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(`Failed to fetch version registry: ${res.statusText}`);
+    }
+    const data = await res.json();
+    return parsePnpmVersionsRegistry(data);
+}
+async function resolvePnpmVersion(version) {
+    const registry = await fetchPnpmVersionsRegistry("https://registry.npmjs.org/@pnpm/exe");
+    if (version in registry) {
+        return registry[version];
+    }
+    else {
+        throw new Error(`Unknown version: ${version}`);
+    }
 }
 async function downloadPnpm(pnpmHome, version, platform, architecture) {
     const ext = platform === "win" ? ".exe" : "";

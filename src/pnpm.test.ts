@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createPnpmHome,
   downloadPnpm,
+  fetchPnpmVersionsRegistry,
+  parsePnpmVersionsRegistry,
   resolvePnpmVersion,
   setupPnpm,
 } from "./pnpm.js";
@@ -34,6 +36,63 @@ it("should create a pnpm home directory", async () => {
 
   expect(pnpmHome).toBe("/tool/pnpm/10.2.1");
   expect(fsPromises.mkdir).toBeCalledWith(pnpmHome, { recursive: true });
+});
+
+describe("parse pnpm versions registry", { concurrent: true }, () => {
+  it("should parse valid registry", () => {
+    const registry = parsePnpmVersionsRegistry({
+      "dist-tags": {
+        latest: "1.0.0",
+      },
+      versions: {
+        "1.0.0": {},
+        "0.1.0": {},
+      },
+    });
+
+    expect(registry).toStrictEqual({
+      latest: "1.0.0",
+      "1.0.0": "1.0.0",
+      "0.1.0": "0.1.0",
+    });
+  });
+
+  it("should not parse invalid registries", () => {
+    const datas = [
+      null,
+      {},
+      {
+        "dist-tags": {
+          latest: null,
+        },
+      },
+    ];
+
+    for (const data of datas) {
+      const registry = parsePnpmVersionsRegistry(data);
+      expect(registry).toStrictEqual({});
+    }
+  });
+});
+
+describe("fetch pnpm versions registry", { concurrent: true }, () => {
+  it("should fetch registry from valid URL", async () => {
+    const registry = fetchPnpmVersionsRegistry(
+      "https://registry.npmjs.org/@pnpm/exe",
+    );
+
+    await expect(registry).resolves.not.toThrow();
+  });
+
+  it("should not fetch registry from invalid URL", async () => {
+    const registry = fetchPnpmVersionsRegistry(
+      "https://registry.npmjs.org/@pnpm/invalid",
+    );
+
+    await expect(registry).rejects.toThrow(
+      "Failed to fetch version registry: Not Found",
+    );
+  });
 });
 
 describe("resolve pnpm version", { concurrent: true }, () => {
