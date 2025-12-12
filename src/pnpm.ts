@@ -14,7 +14,7 @@ export async function createPnpmHome(version: string): Promise<string> {
 export function parsePnpmVersionsRegistry(
   data: unknown,
 ): Record<string, string> {
-  const versionsRegistry: Record<string, string> = {};
+  const registry: Record<string, string> = {};
   if (typeof data === "object" && data !== null) {
     if (
       "dist-tags" in data &&
@@ -24,7 +24,7 @@ export function parsePnpmVersionsRegistry(
       const distTags = data["dist-tags"] as Record<string, unknown>;
       for (const tag in distTags) {
         if (typeof distTags[tag] === "string") {
-          versionsRegistry[tag] = distTags[tag];
+          registry[tag] = distTags[tag];
         }
       }
     }
@@ -35,23 +35,32 @@ export function parsePnpmVersionsRegistry(
       data.versions !== null
     ) {
       for (const version in data.versions) {
-        versionsRegistry[version] = version;
+        registry[version] = version;
       }
     }
   }
-  return versionsRegistry;
+  return registry;
 }
 
-export async function resolvePnpmVersion(version: string): Promise<string> {
-  const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
+export async function fetchPnpmVersionsRegistry(
+  url: string,
+): Promise<Record<string, string>> {
+  const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Failed to fetch version registry: ${res.statusText}`);
   }
 
   const data = await res.json();
-  const versionsRegistry = parsePnpmVersionsRegistry(data);
-  if (version in versionsRegistry) {
-    return versionsRegistry[version];
+  return parsePnpmVersionsRegistry(data);
+}
+
+export async function resolvePnpmVersion(version: string): Promise<string> {
+  const registry = await fetchPnpmVersionsRegistry(
+    "https://registry.npmjs.org/@pnpm/exe",
+  );
+
+  if (version in registry) {
+    return registry[version];
   } else {
     throw new Error(`Unknown version: ${version}`);
   }

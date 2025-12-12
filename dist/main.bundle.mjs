@@ -122,7 +122,7 @@ async function createPnpmHome(version) {
     return pnpmHome;
 }
 function parsePnpmVersionsRegistry(data) {
-    const versionsRegistry = {};
+    const registry = {};
     if (typeof data === "object" && data !== null) {
         if ("dist-tags" in data &&
             typeof data["dist-tags"] === "object" &&
@@ -130,7 +130,7 @@ function parsePnpmVersionsRegistry(data) {
             const distTags = data["dist-tags"];
             for (const tag in distTags) {
                 if (typeof distTags[tag] === "string") {
-                    versionsRegistry[tag] = distTags[tag];
+                    registry[tag] = distTags[tag];
                 }
             }
         }
@@ -138,21 +138,24 @@ function parsePnpmVersionsRegistry(data) {
             typeof data.versions === "object" &&
             data.versions !== null) {
             for (const version in data.versions) {
-                versionsRegistry[version] = version;
+                registry[version] = version;
             }
         }
     }
-    return versionsRegistry;
+    return registry;
 }
-async function resolvePnpmVersion(version) {
-    const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
+async function fetchPnpmVersionsRegistry(url) {
+    const res = await fetch(url);
     if (!res.ok) {
         throw new Error(`Failed to fetch version registry: ${res.statusText}`);
     }
     const data = await res.json();
-    const versionsRegistry = parsePnpmVersionsRegistry(data);
-    if (version in versionsRegistry) {
-        return versionsRegistry[version];
+    return parsePnpmVersionsRegistry(data);
+}
+async function resolvePnpmVersion(version) {
+    const registry = await fetchPnpmVersionsRegistry("https://registry.npmjs.org/@pnpm/exe");
+    if (version in registry) {
+        return registry[version];
     }
     else {
         throw new Error(`Unknown version: ${version}`);
