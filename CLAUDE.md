@@ -11,7 +11,7 @@ pnpm tsc                  # type check
 pnpm eslint .             # lint
 pnpm prettier --check .   # check formatting
 pnpm prettier --write .   # fix formatting
-pnpm rollup -c            # build — outputs dist/main.bundle.mjs
+pnpm rollup -c            # build — outputs dist/main.js
 ```
 
 Pre-commit hooks are managed by [Lefthook](https://lefthook.dev/). Hooks automatically run formatting, linting, type checking, and building before each commit.
@@ -20,7 +20,7 @@ Pre-commit hooks are managed by [Lefthook](https://lefthook.dev/). Hooks automat
 
 This is a JavaScript GitHub Action that downloads and sets up a standalone pnpm binary on all GitHub-hosted runner platforms (Linux x64/arm64, macOS x64/arm64, Windows x64/arm64).
 
-The entry point is `dist/main.bundle.mjs`, produced by Rollup bundling `src/main.ts`. The `dist/` folder must be committed — CI verifies there is no git diff after building.
+The entry point is `dist/main.js`, produced by Rollup bundling `src/main.ts`. The `dist/` folder must be committed — CI verifies there is no git diff after building.
 
 Source files in `src/`:
 
