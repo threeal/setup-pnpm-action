@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      gha-utils:
-        specifier: ^0.4.1
-        version: 0.4.1
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -33,6 +29,9 @@ importers:
       eslint:
         specifier: ^10.3.0
         version: 10.3.0(jiti@2.7.0)
+      gha-utils:
+        specifier: ^0.4.1
+        version: 0.4.1
       jiti:
         specifier: ^2.7.0
         version: 2.7.0
