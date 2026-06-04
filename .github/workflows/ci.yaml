@@ -1,12 +1,42 @@
-name: Test
+name: CI
 on:
   workflow_dispatch:
   pull_request:
   push:
     branches: [main]
 jobs:
-  test-action:
-    name: Test Action
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: ./
+        with:
+          version: 10.33.4
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Check formatting
+        run: pnpm prettier --check .
+
+      - name: Check lint
+        run: pnpm eslint
+
+      - name: Check types
+        run: pnpm tsc
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm rollup -c && git diff --exit-code dist
+
+  test:
+    name: Test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -21,7 +51,7 @@ jobs:
           - windows-2025
           - windows-2022
     steps:
-      - name: Checkout Action
+      - name: Checkout
         uses: actions/checkout@v6.0.2
         with:
           path: setup-pnpm-action
@@ -39,7 +69,7 @@ jobs:
       # - name: Check pnpm
       #   run: pnpm --version
 
-      - name: Setup pnpm With a Specified Version
+      - name: Setup pnpm with version input
         uses: ./setup-pnpm-action
         with:
           version: 9.15.5
