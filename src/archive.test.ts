@@ -1,9 +1,9 @@
+import { execFile } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { chdir } from "node:process";
 import { promisify } from "node:util";
-import { execFile } from "node:child_process";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { extractArchive } from "./archive.js";
 
 const execFileAsync = promisify(execFile);

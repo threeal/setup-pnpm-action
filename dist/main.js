@@ -1,8 +1,8 @@
 import { EOL, arch, platform } from 'node:os';
-import { delimiter, extname, join } from 'node:path';
-import { appendFile, mkdir, chmod, rm } from 'node:fs/promises';
-import 'node:fs';
 import { spawn } from 'node:child_process';
+import 'node:fs';
+import { appendFile, mkdir, chmod, rm } from 'node:fs/promises';
+import { delimiter, extname, join } from 'node:path';
 
 /**
  * Logs an information message in GitHub Actions.
@@ -24,67 +24,57 @@ function logError(err, options) {
     process.stdout.write(`::error${params}::${message}${EOL}`);
 }
 
-async function resolvePnpmVersionFromResponse(version, res) {
-    if (!res.ok) {
-        throw new Error(`Failed to fetch version registry: ${res.statusText}`);
-    }
-    const data = await res.json();
-    if (typeof data === "object" && data !== null) {
-        if ("dist-tags" in data &&
-            typeof data["dist-tags"] === "object" &&
-            data["dist-tags"] !== null) {
-            const distTags = data["dist-tags"];
-            if (version in distTags && typeof distTags[version] === "string") {
-                return distTags[version];
-            }
+function exec(command, args, opts) {
+    return new Promise((resolve, reject) => {
+        const stdoutMode = opts?.stdout ?? "inherit";
+        const stderrMode = opts?.stderr ?? "inherit";
+        const proc = spawn(command, args, {
+            stdio: [
+                "inherit",
+                stdoutMode === "inherit"
+                    ? "inherit"
+                    : stdoutMode === "capture"
+                        ? "pipe"
+                        : "ignore",
+                stderrMode === "inherit"
+                    ? "inherit"
+                    : stderrMode === "capture"
+                        ? "pipe"
+                        : "ignore",
+            ],
+        });
+        const stdoutChunks = [];
+        if (proc.stdout !== null) {
+            proc.stdout.on("data", (chunk) => stdoutChunks.push(chunk));
         }
-        if ("versions" in data &&
-            typeof data.versions === "object" &&
-            data.versions !== null) {
-            if (version in data.versions)
-                return version;
+        const stderrChunks = [];
+        if (proc.stderr !== null) {
+            proc.stderr.on("data", (chunk) => stderrChunks.push(chunk));
         }
-    }
-    throw new Error(`Unknown version: ${version}`);
-}
-async function resolvePnpmVersion(version) {
-    const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
-    return resolvePnpmVersionFromResponse(version, res);
-}
-function getPnpmDownloadUrl({ version, platform, arch, }) {
-    const match = /^(\d+)/.exec(version);
-    if (!match)
-        throw new Error(`Invalid version: ${version}`);
-    const major = parseInt(match[1], 10);
-    let os;
-    switch (platform) {
-        case "linux":
-            os = "linux";
-            break;
-        case "darwin":
-            os = "macos";
-            break;
-        case "win32":
-            os = "win";
-            break;
-        default:
-            throw new Error(`Unsupported platform: ${platform}`);
-    }
-    switch (arch) {
-        case "x64":
-            if (platform === "darwin" && major >= 11) {
-                throw new Error("pnpm does not provide x64 macOS binaries for version 11 and above");
+        proc.on("error", reject);
+        proc.on("close", (code) => {
+            if (code === 0) {
+                if (stdoutMode === "capture" || stderrMode === "capture") {
+                    const result = {};
+                    if (stdoutMode === "capture") {
+                        result.stdout = Buffer.concat(stdoutChunks).toString();
+                    }
+                    if (stderrMode === "capture") {
+                        result.stderr = Buffer.concat(stderrChunks).toString();
+                    }
+                    resolve(result);
+                }
+                else {
+                    resolve();
+                }
             }
-            break;
-        case "arm64":
-            break;
-        default:
-            throw new Error(`Unsupported arch: ${arch}`);
-    }
-    const file = major >= 11
-        ? `pnpm-${platform}-${arch}${platform == "win32" ? ".zip" : ".tar.gz"}`
-        : `pnpm-${os}-${arch}${platform === "win32" ? ".exe" : ""}`;
-    return new URL(`https://github.com/pnpm/pnpm/releases/download/v${version}/${file}`);
+            else {
+                reject(new Error(code !== null
+                    ? `Process "${command}" exited with code ${code.toString()}`
+                    : `Process "${command}" was terminated by a signal`));
+            }
+        });
+    });
 }
 
 /**
@@ -163,59 +153,6 @@ async function addPath(sysPath) {
     await appendFile(getGitHubPath(), `${sysPath}${EOL}`);
 }
 
-function exec(command, args, opts) {
-    return new Promise((resolve, reject) => {
-        const stdoutMode = opts?.stdout ?? "inherit";
-        const stderrMode = opts?.stderr ?? "inherit";
-        const proc = spawn(command, args, {
-            stdio: [
-                "inherit",
-                stdoutMode === "inherit"
-                    ? "inherit"
-                    : stdoutMode === "capture"
-                        ? "pipe"
-                        : "ignore",
-                stderrMode === "inherit"
-                    ? "inherit"
-                    : stderrMode === "capture"
-                        ? "pipe"
-                        : "ignore",
-            ],
-        });
-        const stdoutChunks = [];
-        if (proc.stdout !== null) {
-            proc.stdout.on("data", (chunk) => stdoutChunks.push(chunk));
-        }
-        const stderrChunks = [];
-        if (proc.stderr !== null) {
-            proc.stderr.on("data", (chunk) => stderrChunks.push(chunk));
-        }
-        proc.on("error", reject);
-        proc.on("close", (code) => {
-            if (code === 0) {
-                if (stdoutMode === "capture" || stderrMode === "capture") {
-                    const result = {};
-                    if (stdoutMode === "capture") {
-                        result.stdout = Buffer.concat(stdoutChunks).toString();
-                    }
-                    if (stderrMode === "capture") {
-                        result.stderr = Buffer.concat(stderrChunks).toString();
-                    }
-                    resolve(result);
-                }
-                else {
-                    resolve();
-                }
-            }
-            else {
-                reject(new Error(code !== null
-                    ? `Process "${command}" exited with code ${code.toString()}`
-                    : `Process "${command}" was terminated by a signal`));
-            }
-        });
-    });
-}
-
 async function extractArchive(archiveFile, outputDir) {
     const ext = extname(archiveFile);
     switch (ext) {
@@ -234,6 +171,69 @@ async function extractArchive(archiveFile, outputDir) {
         default:
             throw new Error(`Unsupported archive extension: ${ext}`);
     }
+}
+
+async function resolvePnpmVersionFromResponse(version, res) {
+    if (!res.ok) {
+        throw new Error(`Failed to fetch version registry: ${res.statusText}`);
+    }
+    const data = await res.json();
+    if (typeof data === "object" && data !== null) {
+        if ("dist-tags" in data &&
+            typeof data["dist-tags"] === "object" &&
+            data["dist-tags"] !== null) {
+            const distTags = data["dist-tags"];
+            if (version in distTags && typeof distTags[version] === "string") {
+                return distTags[version];
+            }
+        }
+        if ("versions" in data &&
+            typeof data.versions === "object" &&
+            data.versions !== null) {
+            if (version in data.versions)
+                return version;
+        }
+    }
+    throw new Error(`Unknown version: ${version}`);
+}
+async function resolvePnpmVersion(version) {
+    const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
+    return resolvePnpmVersionFromResponse(version, res);
+}
+function getPnpmDownloadUrl({ version, platform, arch, }) {
+    const match = /^(\d+)/.exec(version);
+    if (!match)
+        throw new Error(`Invalid version: ${version}`);
+    const major = parseInt(match[1], 10);
+    let os;
+    switch (platform) {
+        case "linux":
+            os = "linux";
+            break;
+        case "darwin":
+            os = "macos";
+            break;
+        case "win32":
+            os = "win";
+            break;
+        default:
+            throw new Error(`Unsupported platform: ${platform}`);
+    }
+    switch (arch) {
+        case "x64":
+            if (platform === "darwin" && major >= 11) {
+                throw new Error("pnpm does not provide x64 macOS binaries for version 11 and above");
+            }
+            break;
+        case "arm64":
+            break;
+        default:
+            throw new Error(`Unsupported arch: ${arch}`);
+    }
+    const file = major >= 11
+        ? `pnpm-${platform}-${arch}${platform == "win32" ? ".zip" : ".tar.gz"}`
+        : `pnpm-${os}-${arch}${platform === "win32" ? ".exe" : ""}`;
+    return new URL(`https://github.com/pnpm/pnpm/releases/download/v${version}/${file}`);
 }
 
 async function setupPnpmAction() {

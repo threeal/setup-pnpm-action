@@ -1,6 +1,11 @@
+import { addPath, getInput, setEnv } from "ghakit/io";
+import { logInfo } from "ghakit/log";
+import { getRunnerToolCache } from "ghakit/vars";
 import { execFile } from "node:child_process";
 import { mkdir, rm } from "node:fs/promises";
+import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { chdir } from "node:process";
 import { promisify } from "node:util";
 import {
   afterAll,
@@ -12,11 +17,6 @@ import {
   vi,
 } from "vitest";
 import { setupPnpmAction } from "./action.js";
-import { chdir } from "node:process";
-import { homedir } from "node:os";
-import { logInfo } from "ghakit/log";
-import { addPath, getInput, setEnv } from "ghakit/io";
-import { getRunnerToolCache } from "ghakit/vars";
 import { resolvePnpmVersion } from "./pnpm.js";
 
 const execFileAsync = promisify(execFile);
