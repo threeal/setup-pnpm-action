@@ -25,8 +25,7 @@ The entry point is `dist/main.js`, produced by Rollup bundling `src/main.ts`. Th
 Source files in `src/`:
 
 - `main.ts` — action entry point; calls `setupPnpmAction()` from `action.ts` and handles top-level errors by logging and setting `process.exitCode = 1`.
-- `action.ts` — `setupPnpmAction()` orchestrates the full setup: resolves the pnpm version, creates the pnpm home directory under `$RUNNER_TOOL_CACHE/pnpm/<version>/`, downloads the binary via `downloadFile()`, chmods it to `755`, and sets `PNPM_HOME` / adds it to `PATH`.
+- `action.ts` — `setupPnpmAction()` orchestrates the full setup: resolves the pnpm version, creates the pnpm home directory under `getRunnerToolCache()/pnpm/<version>/` (via `ghakit/vars`), downloads the binary via `exec("curl", ...)` from `ghakit/exec`, chmods it to `755`, and sets `PNPM_HOME` / adds it to `PATH`.
 - `pnpm.ts` — `resolvePnpmVersionFromResponse(version, res)` (extracts the resolved version from an NPM registry HTTP response, throws on unknown version or HTTP error), `resolvePnpmVersion(version)` (fetches the `@pnpm/exe` NPM registry entry and delegates to `resolvePnpmVersionFromResponse`), `getPnpmBinaryName(platform)` (returns `"pnpm.exe"` on Windows, `"pnpm"` otherwise), `getPnpmDownloadUrl({version, platform, arch})` (builds the GitHub release download URL, throws on unsupported platform or arch).
-- `download.ts` — `downloadFile(url, dest)` (spawns `curl -fLSs --output <dest> <url>`, collects stderr, rejects with the stderr message on non-zero exit).
 
-Tests use Vitest and must maintain 100% coverage (enforced in `vitest.config.ts`). Test files are co-located with sources (`*.test.ts`). Most external dependencies (`gha-utils`, `fs`, network) are mocked via `vi.mock()`. Note that `fetchPnpmVersionsRegistry()` makes a real network call in tests.
+Tests use Vitest and must maintain 100% coverage (enforced in `vitest.config.ts`). Test files are co-located with sources (`*.test.ts`). Most external dependencies (`ghakit`, `fs`, network) are mocked via `vi.mock()`. Note that `fetchPnpmVersionsRegistry()` makes a real network call in tests.
