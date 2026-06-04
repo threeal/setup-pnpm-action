@@ -1,141 +1,127 @@
-import { addPath, setEnv } from "gha-utils";
-import fsPromises from "node:fs/promises";
-import { describe, expect, it, vi } from "vitest";
-
+import { describe, expect, test } from "vitest";
 import {
-  createPnpmHome,
-  downloadPnpm,
-  fetchPnpmVersionsRegistry,
-  parsePnpmVersionsRegistry,
+  getPnpmBinaryName,
+  getPnpmDownloadUrl,
   resolvePnpmVersion,
-  setupPnpm,
+  resolvePnpmVersionFromResponse,
 } from "./pnpm.js";
 
-import { downloadFile } from "./download.js";
-
-vi.mock("gha-utils", () => ({
-  addPath: vi.fn().mockResolvedValue(undefined),
-  setEnv: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock("node:fs/promises", () => ({
-  default: {
-    chmod: vi.fn().mockResolvedValue(undefined),
-    mkdir: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
-vi.mock("./download.js", () => ({
-  downloadFile: vi.fn().mockResolvedValue(undefined),
-}));
-
-it("should create a pnpm home directory", async () => {
-  process.env.RUNNER_TOOL_CACHE = "/tool";
-
-  const pnpmHome = await createPnpmHome("10.2.1");
-
-  expect(pnpmHome).toBe("/tool/pnpm/10.2.1");
-  expect(fsPromises.mkdir).toBeCalledWith(pnpmHome, { recursive: true });
-});
-
-describe("parse pnpm versions registry", { concurrent: true }, () => {
-  it("should parse valid registry", () => {
-    const registry = parsePnpmVersionsRegistry({
-      "dist-tags": {
-        latest: "1.0.0",
-      },
-      versions: {
-        "1.0.0": {},
-        "0.1.0": {},
+describe("resolvePnpmVersionFromResponse", { concurrent: true }, () => {
+  const createRes = (data: unknown) =>
+    new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
       },
     });
 
-    expect(registry).toStrictEqual({
-      latest: "1.0.0",
-      "1.0.0": "1.0.0",
-      "0.1.0": "0.1.0",
+  test("throws on HTTP error", async () => {
+    const res = new Response(null, {
+      status: 500,
+      statusText: "Internal Server Error",
     });
+    await expect(
+      resolvePnpmVersionFromResponse("10.34.0", res),
+    ).rejects.toThrow(
+      "Failed to fetch version registry: Internal Server Error",
+    );
   });
 
-  it("should not parse invalid registries", () => {
-    const datas = [
-      null,
-      {},
-      {
-        "dist-tags": {
-          latest: null,
-        },
-      },
-    ];
+  test("resolves a pnpm tag", async () => {
+    const res = createRes({ "dist-tags": { latest: "11.5.0" } });
+    const version = await resolvePnpmVersionFromResponse("latest", res);
+    expect(version).toBe("11.5.0");
+  });
 
-    for (const data of datas) {
-      const registry = parsePnpmVersionsRegistry(data);
-      expect(registry).toStrictEqual({});
-    }
+  test("resolves a pnpm version", async () => {
+    const res = createRes({ versions: { "10.34.0": {} } });
+    const version = await resolvePnpmVersionFromResponse("10.34.0", res);
+    expect(version).toBe("10.34.0");
+  });
+
+  test("throws when response body is not an object", async () => {
+    const res = createRes("10.34.0");
+    await expect(
+      resolvePnpmVersionFromResponse("10.34.0", res),
+    ).rejects.toThrow("Unknown version: 10.34.0");
+  });
+
+  test("throws when response has no version fields", async () => {
+    const res = createRes({});
+    await expect(
+      resolvePnpmVersionFromResponse("10.34.0", res),
+    ).rejects.toThrow("Unknown version: 10.34.0");
+  });
+
+  test("throws when version is not in registry", async () => {
+    const res = createRes({ versions: { "11.5.0": {} } });
+    await expect(
+      resolvePnpmVersionFromResponse("10.34.0", res),
+    ).rejects.toThrow("Unknown version: 10.34.0");
   });
 });
 
-describe("fetch pnpm versions registry", { concurrent: true }, () => {
-  it("should fetch registry from valid URL", async () => {
-    const registry = fetchPnpmVersionsRegistry(
-      "https://registry.npmjs.org/@pnpm/exe",
-    );
-
-    await expect(registry).resolves.not.toThrow();
+describe("resolvePnpmVersion", { concurrent: true }, () => {
+  test("resolves a pnpm tag", async () => {
+    const version = await resolvePnpmVersion("latest");
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("should not fetch registry from invalid URL", async () => {
-    const registry = fetchPnpmVersionsRegistry(
-      "https://registry.npmjs.org/@pnpm/invalid",
-    );
-
-    await expect(registry).rejects.toThrow(
-      "Failed to fetch version registry: Not Found",
-    );
+  test("resolves a pnpm version", async () => {
+    const version = await resolvePnpmVersion("10.34.0");
+    expect(version).toBe("10.34.0");
   });
 });
 
-describe("resolve pnpm version", { concurrent: true }, () => {
-  it("should resolve pnpm version", async () => {
-    await expect(resolvePnpmVersion("10.2.1")).resolves.toBe("10.2.1");
+describe("getPnpmBinaryName", () => {
+  test("returns pnpm for non-Windows platforms", () => {
+    expect(getPnpmBinaryName("linux")).toBe("pnpm");
+    expect(getPnpmBinaryName("darwin")).toBe("pnpm");
   });
 
-  it("should resolve pnpm version using tag", async () => {
-    await expect(resolvePnpmVersion("latest")).resolves.not.toThrow();
-  });
-
-  it("should not resolve pnpm version", async () => {
-    await expect(resolvePnpmVersion("invalid")).rejects.toThrow(
-      "Unknown version: invalid",
-    );
+  test("returns pnpm.exe for Windows", () => {
+    expect(getPnpmBinaryName("win32")).toBe("pnpm.exe");
   });
 });
 
-describe("download pnpm", () => {
-  it("should download pnpm", async () => {
-    await downloadPnpm("/pnpm", "10.2.1", "linux", "x64");
+describe("getPnpmDownloadUrl", { concurrent: true }, () => {
+  const version = "10.34.0";
 
-    expect(downloadFile).toBeCalledWith(
-      "https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-linux-x64",
-      "/pnpm/pnpm",
+  const combinations = [
+    { platform: "linux", arch: "x64" },
+    { platform: "linux", arch: "arm64" },
+    { platform: "darwin", arch: "x64" },
+    { platform: "darwin", arch: "arm64" },
+    { platform: "win32", arch: "x64" },
+    { platform: "win32", arch: "arm64" },
+  ] as const;
+
+  test("returns unique URLs for each combination", () => {
+    const urls = combinations.map(({ platform, arch }) =>
+      getPnpmDownloadUrl({ version, platform, arch }),
     );
-    expect(fsPromises.chmod).toBeCalledWith("/pnpm/pnpm", "755");
+    expect(new Set(urls).size).toBe(combinations.length);
   });
 
-  it("should download pnpm on Windows", async () => {
-    await downloadPnpm("/pnpm", "10.2.1", "win", "x64");
+  test.each(combinations)(
+    "returns accessible URL for $platform/$arch",
+    { timeout: 30000 },
+    async ({ platform, arch }) => {
+      const url = getPnpmDownloadUrl({ version, platform, arch });
+      const res = await fetch(url, { method: "HEAD" });
+      expect(res.ok).toBe(true);
+    },
+  );
 
-    expect(downloadFile).toBeCalledWith(
-      "https://github.com/pnpm/pnpm/releases/download/v10.2.1/pnpm-win-x64.exe",
-      "/pnpm/pnpm.exe",
-    );
-    expect(fsPromises.chmod).toBeCalledWith("/pnpm/pnpm.exe", "755");
+  test("throws when platform is unsupported", () => {
+    expect(() =>
+      getPnpmDownloadUrl({ version, platform: "freebsd", arch: "x64" }),
+    ).toThrow("Unsupported platform: freebsd");
   });
-});
 
-it("should setup pnpm", async () => {
-  await setupPnpm("/pnpm");
-
-  expect(addPath).toBeCalledWith("/pnpm");
-  expect(setEnv).toBeCalledWith("PNPM_HOME", "/pnpm");
+  test("throws when arch is unsupported", () => {
+    expect(() =>
+      getPnpmDownloadUrl({ version, platform: "linux", arch: "ia32" }),
+    ).toThrow("Unsupported arch: ia32");
+  });
 });
