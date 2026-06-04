@@ -13,7 +13,7 @@
     "ghakit": "^1.0.0",
     "jiti": "^2.7.0",
     "prettier": "^3.8.3",
-    "rollup": "^4.60.3",
+    "rollup": "^4.61.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.3",
     "vitest": "^4.0.15"
