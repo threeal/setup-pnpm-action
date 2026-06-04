@@ -1,7 +1,7 @@
 import 'node:fs';
-import fsPromises from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
+import fsPromises, { mkdir, chmod } from 'node:fs/promises';
+import os, { platform, arch } from 'node:os';
+import path, { join } from 'node:path';
 import { spawn } from 'node:child_process';
 
 /**
@@ -75,27 +75,64 @@ function logError(err) {
     process.stdout.write(`::error::${message}${os.EOL}`);
 }
 
-function getPlatform() {
-    switch (os.platform()) {
-        case "linux":
-            return "linux";
-        case "darwin":
-            return "macos";
-        case "win32":
-            return "win";
-        default:
-            throw new Error(`Unknown platform: ${os.platform()}`);
+async function resolvePnpmVersionFromResponse(version, res) {
+    if (!res.ok) {
+        throw new Error(`Failed to fetch version registry: ${res.statusText}`);
     }
+    const data = await res.json();
+    if (typeof data === "object" && data !== null) {
+        if ("dist-tags" in data &&
+            typeof data["dist-tags"] === "object" &&
+            data["dist-tags"] !== null) {
+            const distTags = data["dist-tags"];
+            if (version in distTags && typeof distTags[version] === "string") {
+                return distTags[version];
+            }
+        }
+        if ("versions" in data &&
+            typeof data.versions === "object" &&
+            data.versions !== null) {
+            if (version in data.versions)
+                return version;
+        }
+    }
+    throw new Error(`Unknown version: ${version}`);
 }
-function getArchitecture() {
-    switch (os.arch()) {
-        case "x64":
-            return "x64";
-        case "arm64":
-            return "arm64";
+async function resolvePnpmVersion(version) {
+    const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
+    return resolvePnpmVersionFromResponse(version, res);
+}
+function getPnpmBinaryName(platform) {
+    return platform === "win32" ? "pnpm.exe" : "pnpm";
+}
+function getPnpmDownloadUrl({ version, platform, arch, }) {
+    let os;
+    switch (platform) {
+        case "linux":
+            os = "linux";
+            break;
+        case "darwin":
+            os = "macos";
+            break;
+        case "win32":
+            os = "win";
+            break;
         default:
-            throw new Error(`Unknown architecture: ${os.arch()}`);
+            throw new Error(`Unsupported platform: ${platform}`);
     }
+    let archStr;
+    switch (arch) {
+        case "x64":
+            archStr = "x64";
+            break;
+        case "arm64":
+            archStr = "arm64";
+            break;
+        default:
+            throw new Error(`Unsupported arch: ${arch}`);
+    }
+    const ext = platform === "win32" ? ".exe" : "";
+    return `https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${os}-${archStr}${ext}`;
 }
 
 async function downloadFile(url, dest) {
@@ -115,72 +152,28 @@ async function downloadFile(url, dest) {
     });
 }
 
-async function createPnpmHome(version) {
+async function setupPnpmAction() {
+    logInfo("Resolve pnpm version");
+    const version = await resolvePnpmVersion(getInput("version"));
+    logInfo("Create pnpm home");
     const slug = [process.env.RUNNER_TOOL_CACHE, "pnpm", version];
-    const pnpmHome = path.join(...slug.filter((s) => s !== undefined));
-    await fsPromises.mkdir(pnpmHome, { recursive: true });
-    return pnpmHome;
-}
-function parsePnpmVersionsRegistry(data) {
-    const registry = {};
-    if (typeof data === "object" && data !== null) {
-        if ("dist-tags" in data &&
-            typeof data["dist-tags"] === "object" &&
-            data["dist-tags"] !== null) {
-            const distTags = data["dist-tags"];
-            for (const tag in distTags) {
-                if (typeof distTags[tag] === "string") {
-                    registry[tag] = distTags[tag];
-                }
-            }
-        }
-        if ("versions" in data &&
-            typeof data.versions === "object" &&
-            data.versions !== null) {
-            for (const version in data.versions) {
-                registry[version] = version;
-            }
-        }
-    }
-    return registry;
-}
-async function fetchPnpmVersionsRegistry(url) {
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`Failed to fetch version registry: ${res.statusText}`);
-    }
-    const data = await res.json();
-    return parsePnpmVersionsRegistry(data);
-}
-async function resolvePnpmVersion(version) {
-    const registry = await fetchPnpmVersionsRegistry("https://registry.npmjs.org/@pnpm/exe");
-    if (version in registry) {
-        return registry[version];
-    }
-    else {
-        throw new Error(`Unknown version: ${version}`);
-    }
-}
-async function downloadPnpm(pnpmHome, version, platform, architecture) {
-    const ext = platform === "win" ? ".exe" : "";
-    const pnpmFile = path.join(pnpmHome, `pnpm${ext}`);
-    await downloadFile(`https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${platform}-${architecture}${ext}`, pnpmFile);
-    await fsPromises.chmod(pnpmFile, "755");
-}
-async function setupPnpm(pnpmHome) {
+    const pnpmHome = join(...slug.filter((s) => s !== undefined));
+    await mkdir(pnpmHome, { recursive: true });
+    const binPath = join(pnpmHome, getPnpmBinaryName(platform()));
+    const url = getPnpmDownloadUrl({
+        version,
+        platform: platform(),
+        arch: arch(),
+    });
+    logInfo(`Download pnpm ${version}`);
+    await downloadFile(url, binPath);
+    logInfo("Set file permissions");
+    await chmod(binPath, "755");
+    logInfo("Add pnpm to PATH");
     await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
 }
 
-try {
-    const version = await resolvePnpmVersion(getInput("version"));
-    const platform = getPlatform();
-    const architecture = getArchitecture();
-    const pnpmHome = await createPnpmHome(version);
-    logInfo(`Downloading pnpm to ${pnpmHome}...`);
-    await downloadPnpm(pnpmHome, version, platform, architecture);
-    await setupPnpm(pnpmHome);
-}
-catch (err) {
+await setupPnpmAction().catch((err) => {
     logError(err);
     process.exitCode = 1;
-}
+});

@@ -1,51 +1,47 @@
-import fsPromises from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { mkdir, readFile, rm } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { downloadFile } from "./download.js";
 
-describe("download files", { concurrent: true }, () => {
-  let tempDir: string;
-  beforeAll(async () => {
-    tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "test"));
-  });
+const tmpDir = resolve(
+  import.meta.dirname,
+  `.${basename(import.meta.filename)}.tmp`,
+);
 
-  it("should download a file", async () => {
+beforeAll(async () => {
+  await rm(tmpDir, { force: true, recursive: true });
+  await mkdir(tmpDir, { recursive: true });
+});
+
+afterAll(() => rm(tmpDir, { force: true, recursive: true }));
+
+describe("downloadFile", { concurrent: true }, () => {
+  test("downloads a file", async () => {
     await downloadFile(
       "https://raw.githubusercontent.com/pnpm/pnpm/refs/heads/main/LICENSE",
-      path.join(tempDir, "LICENSE"),
+      join(tmpDir, "LICENSE"),
     );
 
-    const data = await fsPromises.readFile(
-      path.join(tempDir, "LICENSE"),
-      "utf8",
-    );
+    const data = await readFile(join(tmpDir, "LICENSE"), "utf8");
     expect(data).toContain("The MIT License (MIT)");
   });
 
-  it("should download a file following redirect", async () => {
+  test("downloads a file following a redirect", async () => {
     await downloadFile(
       "https://raw.github.com/pnpm/pnpm/refs/heads/main/LICENSE",
-      path.join(tempDir, "releases"),
+      join(tmpDir, "releases"),
     );
 
-    const data = await fsPromises.readFile(
-      path.join(tempDir, "releases"),
-      "utf8",
-    );
+    const data = await readFile(join(tmpDir, "releases"), "utf8");
     expect(data).toContain("The MIT License (MIT)");
   });
 
-  it("should fail to download a file", async () => {
+  test("fails to download a nonexistent file", async () => {
     await expect(
       downloadFile(
         "https://raw.githubusercontent.com/pnpm/pnpm/refs/heads/main/LICENSEe",
-        path.join(tempDir, "LICENSEe"),
+        join(tmpDir, "LICENSEe"),
       ),
     ).rejects.toThrow("The requested URL returned error: 404");
-  });
-
-  afterAll(async () => {
-    await fsPromises.rm(tempDir, { recursive: true, force: true });
   });
 });

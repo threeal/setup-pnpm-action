@@ -1,20 +1,12 @@
-import { addPath, setEnv } from "gha-utils";
-import fsPromises from "node:fs/promises";
-import path from "node:path";
-import { downloadFile } from "./download.js";
-import type { Architecture, Platform } from "./platform.js";
+export async function resolvePnpmVersionFromResponse(
+  version: string,
+  res: Response,
+): Promise<string> {
+  if (!res.ok) {
+    throw new Error(`Failed to fetch version registry: ${res.statusText}`);
+  }
 
-export async function createPnpmHome(version: string): Promise<string> {
-  const slug = [process.env.RUNNER_TOOL_CACHE, "pnpm", version];
-  const pnpmHome = path.join(...slug.filter((s) => s !== undefined));
-  await fsPromises.mkdir(pnpmHome, { recursive: true });
-  return pnpmHome;
-}
-
-export function parsePnpmVersionsRegistry(
-  data: unknown,
-): Record<string, string> {
-  const registry: Record<string, string> = {};
+  const data = await res.json();
   if (typeof data === "object" && data !== null) {
     if (
       "dist-tags" in data &&
@@ -22,10 +14,8 @@ export function parsePnpmVersionsRegistry(
       data["dist-tags"] !== null
     ) {
       const distTags = data["dist-tags"] as Record<string, unknown>;
-      for (const tag in distTags) {
-        if (typeof distTags[tag] === "string") {
-          registry[tag] = distTags[tag];
-        }
+      if (version in distTags && typeof distTags[version] === "string") {
+        return distTags[version];
       }
     }
 
@@ -34,53 +24,58 @@ export function parsePnpmVersionsRegistry(
       typeof data.versions === "object" &&
       data.versions !== null
     ) {
-      for (const version in data.versions) {
-        registry[version] = version;
-      }
+      if (version in data.versions) return version;
     }
   }
-  return registry;
-}
 
-export async function fetchPnpmVersionsRegistry(
-  url: string,
-): Promise<Record<string, string>> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch version registry: ${res.statusText}`);
-  }
-
-  const data = await res.json();
-  return parsePnpmVersionsRegistry(data);
+  throw new Error(`Unknown version: ${version}`);
 }
 
 export async function resolvePnpmVersion(version: string): Promise<string> {
-  const registry = await fetchPnpmVersionsRegistry(
-    "https://registry.npmjs.org/@pnpm/exe",
-  );
+  const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
+  return resolvePnpmVersionFromResponse(version, res);
+}
 
-  if (version in registry) {
-    return registry[version];
-  } else {
-    throw new Error(`Unknown version: ${version}`);
+export function getPnpmBinaryName(platform: string): string {
+  return platform === "win32" ? "pnpm.exe" : "pnpm";
+}
+
+export function getPnpmDownloadUrl({
+  version,
+  platform,
+  arch,
+}: {
+  version: string;
+  platform: string;
+  arch: string;
+}): string {
+  let os: string;
+  switch (platform) {
+    case "linux":
+      os = "linux";
+      break;
+    case "darwin":
+      os = "macos";
+      break;
+    case "win32":
+      os = "win";
+      break;
+    default:
+      throw new Error(`Unsupported platform: ${platform}`);
   }
-}
 
-export async function downloadPnpm(
-  pnpmHome: string,
-  version: string,
-  platform: Platform,
-  architecture: Architecture,
-): Promise<void> {
-  const ext = platform === "win" ? ".exe" : "";
-  const pnpmFile = path.join(pnpmHome, `pnpm${ext}`);
-  await downloadFile(
-    `https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${platform}-${architecture}${ext}`,
-    pnpmFile,
-  );
-  await fsPromises.chmod(pnpmFile, "755");
-}
+  let archStr: string;
+  switch (arch) {
+    case "x64":
+      archStr = "x64";
+      break;
+    case "arm64":
+      archStr = "arm64";
+      break;
+    default:
+      throw new Error(`Unsupported arch: ${arch}`);
+  }
 
-export async function setupPnpm(pnpmHome: string): Promise<void> {
-  await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
+  const ext = platform === "win32" ? ".exe" : "";
+  return `https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${os}-${archStr}${ext}`;
 }
