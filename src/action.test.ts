@@ -1,4 +1,3 @@
-import { addPath, getInput, logInfo, setEnv } from "gha-utils";
 import { execFile } from "node:child_process";
 import { mkdir, rm } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
@@ -15,10 +14,15 @@ import {
 import { setupPnpmAction } from "./action.js";
 import { chdir } from "node:process";
 import { homedir } from "node:os";
+import { logInfo } from "ghakit/log";
+import { addPath, getInput, setEnv } from "ghakit/io";
+import { getRunnerToolCache } from "ghakit/vars";
 
 const execFileAsync = promisify(execFile);
 
-vi.mock(import("gha-utils"));
+vi.mock(import("ghakit/io"));
+vi.mock(import("ghakit/log"));
+vi.mock(import("ghakit/vars"));
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -41,7 +45,7 @@ describe("setupPnpmAction", () => {
   beforeEach(() => {
     logs = [];
     vi.mocked(logInfo).mockImplementation((message) => logs.push(message));
-    vi.stubEnv("RUNNER_TOOL_CACHE", join(tmpDir, "cache"));
+    vi.mocked(getRunnerToolCache).mockReturnValue(join(tmpDir, "cache"));
   });
 
   test("downloads specified version", { timeout: 60000 }, async () => {

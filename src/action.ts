@@ -1,4 +1,3 @@
-import { addPath, getInput, logInfo, setEnv } from "gha-utils";
 import {
   getPnpmDownloadUrl,
   getPnpmBinaryName,
@@ -6,16 +5,18 @@ import {
 } from "./pnpm.js";
 import { join } from "node:path";
 import { chmod, mkdir } from "node:fs/promises";
-import { downloadFile } from "./download.js";
 import { arch, platform } from "node:os";
+import { logInfo } from "ghakit/log";
+import { addPath, getInput, setEnv } from "ghakit/io";
+import { getRunnerToolCache } from "ghakit/vars";
+import { exec } from "ghakit/exec";
 
 export async function setupPnpmAction() {
   logInfo("Resolve pnpm version");
-  const version = await resolvePnpmVersion(getInput("version"));
+  const version = await resolvePnpmVersion(getInput("version").trim());
 
   logInfo("Create pnpm home");
-  const slug = [process.env.RUNNER_TOOL_CACHE, "pnpm", version];
-  const pnpmHome = join(...slug.filter((s) => s !== undefined));
+  const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
   await mkdir(pnpmHome, { recursive: true });
 
   const binPath = join(pnpmHome, getPnpmBinaryName(platform()));
@@ -26,7 +27,10 @@ export async function setupPnpmAction() {
   });
 
   logInfo(`Download pnpm ${version}`);
-  await downloadFile(url, binPath);
+  await exec("curl", ["-fLSs", "--output", binPath, url], {
+    stdout: "silent",
+    stderr: "silent",
+  });
 
   logInfo("Set file permissions");
   await chmod(binPath, "755");
