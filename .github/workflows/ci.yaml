@@ -51,19 +51,24 @@ jobs:
             dist
           sparse-checkout-cone-mode: false
 
-      # TODO: Re-enable latest pnpm setup after
-      # https://github.com/threeal/setup-pnpm-action/issues/195 is fixed.
-      #
-      # - name: Setup pnpm
-      #   uses: ./setup-pnpm-action
-      #
-      # - name: Check pnpm
-      #   run: pnpm --version
+      - name: Setup pnpm
+        uses: ./setup-pnpm-action
+
+      - name: Verify latest pnpm version
+        shell: bash
+        run: |
+          version="$(pnpm --version)"
+          echo "$version"
+          test "$version" != "10.34.0"
 
       - name: Setup pnpm with version input
         uses: ./setup-pnpm-action
         with:
-          version: 9.15.5
+          version: 10.34.0
 
-      - name: Check pnpm
-        run: pnpm --version
+      - name: Verify specified pnpm version
+        shell: bash
+        run: |
+          version="$(pnpm --version)"
+          echo "$version"
+          test "$version" = "10.34.0"
