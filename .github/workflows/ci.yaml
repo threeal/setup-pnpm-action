@@ -5,35 +5,26 @@ on:
   push:
     branches: [main]
 jobs:
-  build:
-    name: Build
+  check:
+    name: Check
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
+
+      - name: Setup Lefthook
+        uses: threeal/setup-lefthook-action@v1.0.0
 
       - name: Setup pnpm
         uses: ./
         with:
           version: 10.33.4
 
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Check formatting
-        run: pnpm prettier --check .
-
-      - name: Check lint
-        run: pnpm eslint
-
-      - name: Check types
-        run: pnpm tsc
+      - name: Check pre-commit hook
+        run: lefthook run pre-commit --all-files
 
       - name: Test
         run: pnpm test
-
-      - name: Build
-        run: pnpm rollup -c && git diff --exit-code dist
 
   test:
     name: Test
