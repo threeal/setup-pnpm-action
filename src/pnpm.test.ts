@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
 import {
-  getPnpmBinaryName,
   getPnpmDownloadUrl,
   resolvePnpmVersion,
   resolvePnpmVersionFromResponse,
@@ -73,55 +72,70 @@ describe("resolvePnpmVersion", { concurrent: true }, () => {
   });
 });
 
-describe("getPnpmBinaryName", () => {
-  test("returns pnpm for non-Windows platforms", () => {
-    expect(getPnpmBinaryName("linux")).toBe("pnpm");
-    expect(getPnpmBinaryName("darwin")).toBe("pnpm");
-  });
-
-  test("returns pnpm.exe for Windows", () => {
-    expect(getPnpmBinaryName("win32")).toBe("pnpm.exe");
-  });
-});
-
 describe("getPnpmDownloadUrl", { concurrent: true }, () => {
-  const version = "10.34.0";
-
-  const combinations = [
-    { platform: "linux", arch: "x64" },
-    { platform: "linux", arch: "arm64" },
-    { platform: "darwin", arch: "x64" },
-    { platform: "darwin", arch: "arm64" },
-    { platform: "win32", arch: "x64" },
-    { platform: "win32", arch: "arm64" },
-  ] as const;
+  const combinations = ["10.34.0", "11.5.0"]
+    .flatMap((version) =>
+      ["linux", "darwin", "win32"].flatMap((platform) =>
+        ["x64", "arm64"].map((arch) => ({ version, platform, arch })),
+      ),
+    )
+    .filter(
+      ({ version, platform, arch }) =>
+        version !== "11.5.0" || platform !== "darwin" || arch !== "x64",
+    );
 
   test("returns unique URLs for each combination", () => {
-    const urls = combinations.map(({ platform, arch }) =>
+    const urls = combinations.map(({ version, platform, arch }) =>
       getPnpmDownloadUrl({ version, platform, arch }),
     );
     expect(new Set(urls).size).toBe(combinations.length);
   });
 
   test.each(combinations)(
-    "returns accessible URL for $platform/$arch",
+    "returns accessible URL for $version/$platform/$arch",
     { timeout: 30000 },
-    async ({ platform, arch }) => {
+    async ({ version, platform, arch }) => {
       const url = getPnpmDownloadUrl({ version, platform, arch });
       const res = await fetch(url, { method: "HEAD" });
       expect(res.ok).toBe(true);
     },
   );
 
+  test("throws when version is invalid", () => {
+    expect(() =>
+      getPnpmDownloadUrl({ version: "latest", platform: "linux", arch: "x64" }),
+    ).toThrow("Invalid version: latest");
+  });
+
   test("throws when platform is unsupported", () => {
     expect(() =>
-      getPnpmDownloadUrl({ version, platform: "freebsd", arch: "x64" }),
+      getPnpmDownloadUrl({
+        version: "10.34.0",
+        platform: "freebsd",
+        arch: "x64",
+      }),
     ).toThrow("Unsupported platform: freebsd");
   });
 
   test("throws when arch is unsupported", () => {
     expect(() =>
-      getPnpmDownloadUrl({ version, platform: "linux", arch: "ia32" }),
+      getPnpmDownloadUrl({
+        version: "10.34.0",
+        platform: "linux",
+        arch: "ia32",
+      }),
     ).toThrow("Unsupported arch: ia32");
+  });
+
+  test("throws for x64 macOS on version 11 and above", () => {
+    expect(() =>
+      getPnpmDownloadUrl({
+        version: "11.5.0",
+        platform: "darwin",
+        arch: "x64",
+      }),
+    ).toThrow(
+      "pnpm does not provide x64 macOS binaries for version 11 and above",
+    );
   });
 });

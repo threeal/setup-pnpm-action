@@ -1,6 +1,6 @@
-import { EOL, platform, arch } from 'node:os';
-import { delimiter, join } from 'node:path';
-import { appendFile, mkdir, chmod } from 'node:fs/promises';
+import { EOL, arch, platform } from 'node:os';
+import { delimiter, extname, join } from 'node:path';
+import { appendFile, mkdir, chmod, rm } from 'node:fs/promises';
 import 'node:fs';
 import { spawn } from 'node:child_process';
 
@@ -51,10 +51,11 @@ async function resolvePnpmVersion(version) {
     const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
     return resolvePnpmVersionFromResponse(version, res);
 }
-function getPnpmBinaryName(platform) {
-    return platform === "win32" ? "pnpm.exe" : "pnpm";
-}
 function getPnpmDownloadUrl({ version, platform, arch, }) {
+    const match = /^(\d+)/.exec(version);
+    if (!match)
+        throw new Error(`Invalid version: ${version}`);
+    const major = parseInt(match[1], 10);
     let os;
     switch (platform) {
         case "linux":
@@ -69,19 +70,21 @@ function getPnpmDownloadUrl({ version, platform, arch, }) {
         default:
             throw new Error(`Unsupported platform: ${platform}`);
     }
-    let archStr;
     switch (arch) {
         case "x64":
-            archStr = "x64";
+            if (platform === "darwin" && major >= 11) {
+                throw new Error("pnpm does not provide x64 macOS binaries for version 11 and above");
+            }
             break;
         case "arm64":
-            archStr = "arm64";
             break;
         default:
             throw new Error(`Unsupported arch: ${arch}`);
     }
-    const ext = platform === "win32" ? ".exe" : "";
-    return `https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-${os}-${archStr}${ext}`;
+    const file = major >= 11
+        ? `pnpm-${platform}-${arch}${platform == "win32" ? ".zip" : ".tar.gz"}`
+        : `pnpm-${os}-${arch}${platform === "win32" ? ".exe" : ""}`;
+    return new URL(`https://github.com/pnpm/pnpm/releases/download/v${version}/${file}`);
 }
 
 /**
@@ -162,11 +165,21 @@ async function addPath(sysPath) {
 
 function exec(command, args, opts) {
     return new Promise((resolve, reject) => {
+        const stdoutMode = opts?.stdout ?? "inherit";
+        const stderrMode = opts?.stderr ?? "inherit";
         const proc = spawn(command, args, {
             stdio: [
                 "inherit",
-                "ignore",
-                "ignore",
+                stdoutMode === "inherit"
+                    ? "inherit"
+                    : stdoutMode === "capture"
+                        ? "pipe"
+                        : "ignore",
+                stderrMode === "inherit"
+                    ? "inherit"
+                    : stderrMode === "capture"
+                        ? "pipe"
+                        : "ignore",
             ],
         });
         const stdoutChunks = [];
@@ -180,7 +193,17 @@ function exec(command, args, opts) {
         proc.on("error", reject);
         proc.on("close", (code) => {
             if (code === 0) {
-                {
+                if (stdoutMode === "capture" || stderrMode === "capture") {
+                    const result = {};
+                    if (stdoutMode === "capture") {
+                        result.stdout = Buffer.concat(stdoutChunks).toString();
+                    }
+                    if (stderrMode === "capture") {
+                        result.stderr = Buffer.concat(stderrChunks).toString();
+                    }
+                    resolve(result);
+                }
+                else {
                     resolve();
                 }
             }
@@ -193,22 +216,66 @@ function exec(command, args, opts) {
     });
 }
 
+async function extractArchive(archiveFile, outputDir) {
+    const ext = extname(archiveFile);
+    switch (ext) {
+        case ".gz":
+            await exec("tar", ["-xzf", archiveFile, "-C", outputDir], {
+                stdout: "silent",
+                stderr: "silent",
+            });
+            break;
+        case ".zip":
+            await exec("unzip", [archiveFile, "-d", outputDir], {
+                stdout: "silent",
+                stderr: "silent",
+            });
+            break;
+        default:
+            throw new Error(`Unsupported archive extension: ${ext}`);
+    }
+}
+
 async function setupPnpmAction() {
     logInfo("Resolve pnpm version");
     const version = await resolvePnpmVersion(getInput("version").trim());
     logInfo("Create pnpm home");
     const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
     await mkdir(pnpmHome, { recursive: true });
-    const binPath = join(pnpmHome, getPnpmBinaryName(platform()));
-    const url = getPnpmDownloadUrl({
+    const dlUrl = getPnpmDownloadUrl({
         version,
         platform: platform(),
         arch: arch(),
     });
+    const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
+    let dlOut;
+    const dlFileExt = extname(dlFile);
+    switch (dlFileExt) {
+        case ".gz":
+        case ".zip":
+            dlOut = join(pnpmHome, dlFile);
+            break;
+        default:
+            dlOut = join(pnpmHome, `pnpm${dlFileExt}`);
+    }
     logInfo(`Download pnpm ${version}`);
-    await exec("curl", ["-fLSs", "--output", binPath, url]);
-    logInfo("Set file permissions");
-    await chmod(binPath, "755");
+    await exec("curl", ["-fLSs", "--output", dlOut, dlUrl.href], {
+        stdout: "silent",
+        stderr: "silent",
+    });
+    const dlOutExt = extname(dlOut);
+    switch (dlOutExt) {
+        case ".gz":
+        case ".zip":
+            logInfo("Extract archive");
+            await extractArchive(dlOut, pnpmHome);
+            logInfo("Remove archive");
+            await rm(dlOut);
+            break;
+        default:
+            logInfo("Set file permissions");
+            await chmod(dlOut, "755");
+    }
     logInfo("Add pnpm to PATH");
     await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
 }
