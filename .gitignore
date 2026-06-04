@@ -1,5 +1,7 @@
 .*
-!.git*
+!.github/
+!.gitattributes
+!.gitignore
 !.npmrc
 !.prettierignore
 
