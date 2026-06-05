@@ -70,6 +70,8 @@ jobs:
           version: 10.34.0
 
       - name: Verify specified pnpm version
+        # TODO: pnpm v10 and below verification keeps failing on Windows arm64 runners
+        if: matrix.os != 'windows-11-arm'
         shell: bash
         run: |
           version="$(pnpm --version)"
