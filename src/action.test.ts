@@ -1,4 +1,4 @@
-import { addPath, getInput, setEnv, setOutput } from "ghakit/io";
+import { addPath, setEnv, setOutput } from "ghakit/io";
 import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { execFile } from "node:child_process";
@@ -17,6 +17,7 @@ import {
   vi,
 } from "vitest";
 import { setupPnpmAction } from "./action.js";
+import { getVersionInput } from "./input.js";
 import { resolvePnpmVersion } from "./pnpm.js";
 
 const execFileAsync = promisify(execFile);
@@ -32,6 +33,7 @@ vi.mock(import("ghakit/exec"), async (importOriginal) => {
 vi.mock(import("ghakit/io"));
 vi.mock(import("ghakit/log"));
 vi.mock(import("ghakit/vars"));
+vi.mock(import("./input.js"));
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -73,7 +75,7 @@ describe("setupPnpmAction", () => {
   });
 
   test("sets up the latest version", { timeout: 60000 }, async () => {
-    vi.mocked(getInput).mockReturnValue("latest");
+    vi.mocked(getVersionInput).mockResolvedValue("latest");
     const version = await resolvePnpmVersion("latest");
 
     await setupPnpmAction();
@@ -105,7 +107,7 @@ describe("setupPnpmAction", () => {
 
   test("sets up a specific version", { timeout: 60000 }, async () => {
     const version = "10.34.0";
-    vi.mocked(getInput).mockReturnValue(version);
+    vi.mocked(getVersionInput).mockResolvedValue(version);
 
     await setupPnpmAction();
 
@@ -132,7 +134,7 @@ describe("setupPnpmAction", () => {
   });
 
   test("sets up from cache", async () => {
-    vi.mocked(getInput).mockReturnValue("latest");
+    vi.mocked(getVersionInput).mockResolvedValue("latest");
     const version = await resolvePnpmVersion("latest");
 
     await setupPnpmAction();

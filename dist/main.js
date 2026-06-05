@@ -1,8 +1,8 @@
 import { arch, platform, EOL } from 'os';
 import { spawn } from 'child_process';
 import 'fs';
-import { access, mkdir, chmod, rm, appendFile } from 'fs/promises';
-import { join, extname, delimiter } from 'path';
+import { access, mkdir, chmod, rm, readFile, appendFile } from 'fs/promises';
+import { join, extname, basename, delimiter } from 'path';
 
 // node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/log.js
 function logInfo(message) {
@@ -101,6 +101,53 @@ async function extractArchive(archiveFile, outputDir) {
       throw new Error(`Unsupported archive extension: ${ext}`);
   }
 }
+function extractVersionFromPackageJson(packageJson) {
+  if (typeof packageJson !== "object" || packageJson === null) {
+    throw new Error("package.json must be an object");
+  }
+  if (!("packageManager" in packageJson)) {
+    throw new Error("Missing `packageManager` field in package.json");
+  }
+  if (typeof packageJson.packageManager !== "string") {
+    throw new Error("`packageManager` must be a string");
+  }
+  const match = /^([^@]+)@(\d+\.\d+\.\d+)(?:$|\+.*)$/.exec(
+    packageJson.packageManager
+  );
+  if (match?.length !== 3) {
+    throw new Error(
+      `Invalid \`packageManager\` value: ${packageJson.packageManager}`
+    );
+  }
+  if (match[1] !== "pnpm") {
+    throw new Error(`Unsupported package manager: ${match[1]}, expected pnpm`);
+  }
+  return match[2];
+}
+async function getVersionInput() {
+  const version = getInput("version").trim();
+  const versionFile = getInput("version-file").trim();
+  if (version !== "") {
+    if (versionFile !== "") {
+      throw new Error(
+        "Cannot specify both `version` and `version-file` inputs"
+      );
+    }
+    return version;
+  }
+  if (versionFile !== "") {
+    const versionFileName = basename(versionFile);
+    if (versionFileName === "package.json") {
+      logInfo("Read version from package.json");
+      const content = await readFile(versionFile, "utf-8");
+      return extractVersionFromPackageJson(JSON.parse(content));
+    } else {
+      throw new Error(`Unsupported version file: ${versionFileName}`);
+    }
+  }
+  logInfo("No version specified, use latest");
+  return "latest";
+}
 
 // src/pnpm.ts
 async function resolvePnpmVersionFromResponse(version, res) {
@@ -168,8 +215,9 @@ function getPnpmDownloadUrl({
 
 // src/action.ts
 async function setupPnpmAction() {
+  const versionInput = await getVersionInput();
   logInfo("Resolve pnpm version");
-  const version = await resolvePnpmVersion(getInput("version").trim());
+  const version = await resolvePnpmVersion(versionInput);
   const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
   await setEnv("PNPM_HOME", pnpmHome);
   try {
