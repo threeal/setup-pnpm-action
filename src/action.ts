@@ -1,5 +1,5 @@
 import { exec } from "ghakit/exec";
-import { addPath, getInput, setEnv } from "ghakit/io";
+import { addPath, getInput, setEnv, setOutput } from "ghakit/io";
 import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { access, chmod, mkdir, rm } from "node:fs/promises";
@@ -13,6 +13,8 @@ export async function setupPnpmAction() {
   const version = await resolvePnpmVersion(getInput("version").trim());
 
   const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
+  await setEnv("PNPM_HOME", pnpmHome);
+
   try {
     await access(pnpmHome);
     logInfo(`Use cached pnpm ${version}`);
@@ -71,5 +73,7 @@ export async function setupPnpmAction() {
   }
 
   logInfo("Add pnpm to PATH");
-  await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
+  await addPath(pnpmHome);
+
+  await setOutput("version", version);
 }

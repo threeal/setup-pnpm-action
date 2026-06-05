@@ -1,4 +1,4 @@
-import { addPath, getInput, setEnv } from "ghakit/io";
+import { addPath, getInput, setEnv, setOutput } from "ghakit/io";
 import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { execFile } from "node:child_process";
@@ -97,6 +97,9 @@ describe("setupPnpmAction", () => {
     ]);
     expect(vi.mocked(addPath).mock.calls).toStrictEqual([[pnpmHome]]);
 
+    expect(vi.mocked(setOutput).mock.calls).toStrictEqual([
+      ["version", version],
+    ]);
     await assertPnpmVersion(version, pnpmHome);
   });
 
@@ -122,6 +125,9 @@ describe("setupPnpmAction", () => {
     ]);
     expect(vi.mocked(addPath).mock.calls).toStrictEqual([[pnpmHome]]);
 
+    expect(vi.mocked(setOutput).mock.calls).toStrictEqual([
+      ["version", version],
+    ]);
     await assertPnpmVersion(version, pnpmHome);
   });
 
@@ -143,6 +149,9 @@ describe("setupPnpmAction", () => {
     ]);
     expect(vi.mocked(addPath).mock.calls).toStrictEqual([[pnpmHome]]);
 
+    expect(vi.mocked(setOutput).mock.calls).toStrictEqual([
+      ["version", version],
+    ]);
     await assertPnpmVersion(version, pnpmHome);
   });
 });

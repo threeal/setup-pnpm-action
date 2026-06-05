@@ -57,6 +57,9 @@ function exec(command, args, opts) {
 function getGitHubEnv() {
   return process.env.GITHUB_ENV ?? "";
 }
+function getGitHubOutput() {
+  return process.env.GITHUB_OUTPUT ?? "";
+}
 function getGitHubPath() {
   return process.env.GITHUB_PATH ?? "";
 }
@@ -67,6 +70,9 @@ function getRunnerToolCache() {
 // node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/io.js
 function getInput(name) {
   return process.env[`INPUT_${name.toUpperCase()}`] ?? "";
+}
+async function setOutput(name, value) {
+  await appendFile(getGitHubOutput(), `${name}=${value}${EOL}`);
 }
 async function setEnv(name, value) {
   process.env[name] = value;
@@ -165,6 +171,7 @@ async function setupPnpmAction() {
   logInfo("Resolve pnpm version");
   const version = await resolvePnpmVersion(getInput("version").trim());
   const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
+  await setEnv("PNPM_HOME", pnpmHome);
   try {
     await access(pnpmHome);
     logInfo(`Use cached pnpm ${version}`);
@@ -214,7 +221,8 @@ async function setupPnpmAction() {
     }
   }
   logInfo("Add pnpm to PATH");
-  await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
+  await addPath(pnpmHome);
+  await setOutput("version", version);
 }
 
 // src/main.ts
