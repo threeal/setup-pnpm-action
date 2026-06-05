@@ -52,6 +52,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Setup pnpm
+        id: setup-pnpm
         uses: ./setup-pnpm-action
 
       - name: Verify latest pnpm version
@@ -60,8 +61,10 @@ jobs:
           version="$(pnpm --version)"
           echo "$version"
           test "$version" != "10.34.0"
+          test "$version" = "${{ steps.setup-pnpm.outputs.version }}"
 
       - name: Setup pnpm with version input
+        id: setup-pnpm-versioned
         uses: ./setup-pnpm-action
         with:
           version: 10.34.0
@@ -72,8 +75,10 @@ jobs:
           version="$(pnpm --version)"
           echo "$version"
           test "$version" = "10.34.0"
+          test "$version" = "${{ steps.setup-pnpm-versioned.outputs.version }}"
 
       - name: Setup pnpm from cache
+        id: setup-pnpm-cached
         uses: ./setup-pnpm-action
         env:
           PATH: "" # forces cache usage by making curl unavailable
@@ -84,3 +89,4 @@ jobs:
           version="$(pnpm --version)"
           echo "$version"
           test "$version" != "10.34.0"
+          test "$version" = "${{ steps.setup-pnpm-cached.outputs.version }}"

@@ -6,11 +6,15 @@ This action installs the standalone version of pnpm from the [GitHub releases](h
 
 ## Available Inputs
 
-The following input parameters are available for this action:
-
 | Name      | Type                  | Description                                         |
 | --------- | --------------------- | --------------------------------------------------- |
 | `version` | Version number or tag | The pnpm version to install (defaults to `latest`). |
+
+## Available Outputs
+
+| Name      | Type           | Description                                  |
+| --------- | -------------- | -------------------------------------------- |
+| `version` | Version number | Resolved version of pnpm that was installed. |
 
 ## Example Usage
 
