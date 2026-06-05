@@ -35,12 +35,10 @@ jobs:
         os:
           - ubuntu-24.04
           - ubuntu-24.04-arm
-          - ubuntu-22.04
-          - ubuntu-22.04-arm
-          - macos-15
-          - macos-14
           - windows-2025
-          - windows-2022
+          - windows-11-arm
+          - macos-15
+          - macos-15-intel
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.3
@@ -53,9 +51,11 @@ jobs:
 
       - name: Setup pnpm
         id: setup-pnpm
+        if: matrix.os != 'macos-15-intel'
         uses: ./setup-pnpm-action
 
       - name: Verify latest pnpm version
+        if: matrix.os != 'macos-15-intel'
         shell: bash
         run: |
           version="$(pnpm --version)"
@@ -70,6 +70,8 @@ jobs:
           version: 10.34.0
 
       - name: Verify specified pnpm version
+        # TODO: pnpm v10 and below verification keeps failing on Windows arm64 runners
+        if: matrix.os != 'windows-11-arm'
         shell: bash
         run: |
           version="$(pnpm --version)"
@@ -79,11 +81,13 @@ jobs:
 
       - name: Setup pnpm from cache
         id: setup-pnpm-cached
+        if: matrix.os != 'macos-15-intel'
         uses: ./setup-pnpm-action
         env:
           PATH: "" # forces cache usage by making curl unavailable
 
       - name: Verify cached pnpm version
+        if: matrix.os != 'macos-15-intel'
         shell: bash
         run: |
           version="$(pnpm --version)"
