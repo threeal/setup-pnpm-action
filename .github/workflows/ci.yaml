@@ -72,3 +72,15 @@ jobs:
           version="$(pnpm --version)"
           echo "$version"
           test "$version" = "10.34.0"
+
+      - name: Setup pnpm from cache
+        uses: ./setup-pnpm-action
+        env:
+          PATH: "" # forces cache usage by making curl unavailable
+
+      - name: Verify cached pnpm version
+        shell: bash
+        run: |
+          version="$(pnpm --version)"
+          echo "$version"
+          test "$version" != "10.34.0"

@@ -1,7 +1,7 @@
 import { arch, platform, EOL } from 'os';
 import { spawn } from 'child_process';
 import 'fs';
-import { mkdir, chmod, rm, appendFile } from 'fs/promises';
+import { access, mkdir, chmod, rm, appendFile } from 'fs/promises';
 import { join, extname, delimiter } from 'path';
 
 // node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/log.js
@@ -164,49 +164,54 @@ function getPnpmDownloadUrl({
 async function setupPnpmAction() {
   logInfo("Resolve pnpm version");
   const version = await resolvePnpmVersion(getInput("version").trim());
-  logInfo("Create pnpm home");
   const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
-  await mkdir(pnpmHome, { recursive: true });
-  const dlUrl = getPnpmDownloadUrl({
-    version,
-    platform: platform(),
-    arch: arch()
-  });
-  const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
-  let dlOut;
-  const dlFileExt = extname(dlFile);
-  switch (dlFileExt) {
-    case ".gz":
-    case ".zip":
-      dlOut = join(pnpmHome, dlFile);
-      break;
-    default:
-      dlOut = join(pnpmHome, `pnpm${dlFileExt}`);
-  }
-  beginLogGroup(`Download pnpm ${version}`);
   try {
-    const args = ["-fL", "--output", dlOut, dlUrl.href];
-    logCommand("curl", ...args);
-    await exec("curl", args);
-  } finally {
-    endLogGroup();
-  }
-  const dlOutExt = extname(dlOut);
-  switch (dlOutExt) {
-    case ".gz":
-    case ".zip":
-      beginLogGroup("Extract archive");
-      try {
-        await extractArchive(dlOut, pnpmHome);
-      } finally {
-        endLogGroup();
-      }
-      logInfo("Remove archive");
-      await rm(dlOut);
-      break;
-    default:
-      logInfo("Set file permissions");
-      await chmod(dlOut, "755");
+    await access(pnpmHome);
+    logInfo(`Use cached pnpm ${version}`);
+  } catch {
+    logInfo("Create pnpm home");
+    await mkdir(pnpmHome, { recursive: true });
+    const dlUrl = getPnpmDownloadUrl({
+      version,
+      platform: platform(),
+      arch: arch()
+    });
+    const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
+    let dlOut;
+    const dlFileExt = extname(dlFile);
+    switch (dlFileExt) {
+      case ".gz":
+      case ".zip":
+        dlOut = join(pnpmHome, dlFile);
+        break;
+      default:
+        dlOut = join(pnpmHome, `pnpm${dlFileExt}`);
+    }
+    beginLogGroup(`Download pnpm ${version}`);
+    try {
+      const args = ["-fL", "--output", dlOut, dlUrl.href];
+      logCommand("curl", ...args);
+      await exec("curl", args);
+    } finally {
+      endLogGroup();
+    }
+    const dlOutExt = extname(dlOut);
+    switch (dlOutExt) {
+      case ".gz":
+      case ".zip":
+        beginLogGroup("Extract archive");
+        try {
+          await extractArchive(dlOut, pnpmHome);
+        } finally {
+          endLogGroup();
+        }
+        logInfo("Remove archive");
+        await rm(dlOut);
+        break;
+      default:
+        logInfo("Set file permissions");
+        await chmod(dlOut, "755");
+    }
   }
   logInfo("Add pnpm to PATH");
   await Promise.all([setEnv("PNPM_HOME", pnpmHome), addPath(pnpmHome)]);
