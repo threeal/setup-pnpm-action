@@ -2,8 +2,8 @@ name: Setup Standalone pnpm
 author: Alfi Maulana
 description: Set up standalone pnpm with a specified version
 branding:
-  icon: chevrons-right
-  color: black
+  icon: package
+  color: orange
 inputs:
   version:
     description: The pnpm version to set up
