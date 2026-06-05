@@ -11,9 +11,12 @@ A GitHub Action that downloads and sets up standalone [pnpm](https://pnpm.io/) o
 
 ## Inputs
 
-| Name      | Description                     | Default        |
-| --------- | ------------------------------- | -------------- |
-| `version` | The version of pnpm to install. | Latest version |
+| Name           | Description                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| `version`      | The version or tag of pnpm to install.                                                                   |
+| `version-file` | A file specifying the version of pnpm to install. Supports `package.json` with a `packageManager` field. |
+
+`version` and `version-file` are mutually exclusive. If neither is set, the latest version of pnpm will be installed.
 
 ## Outputs
 

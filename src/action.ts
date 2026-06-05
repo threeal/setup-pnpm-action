@@ -1,16 +1,19 @@
 import { exec } from "ghakit/exec";
-import { addPath, getInput, setEnv, setOutput } from "ghakit/io";
+import { addPath, setEnv, setOutput } from "ghakit/io";
 import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { access, chmod, mkdir, rm } from "node:fs/promises";
 import { arch, platform } from "node:os";
 import { extname, join } from "node:path";
 import { extractArchive } from "./archive.js";
+import { getVersionInput } from "./input.js";
 import { getPnpmDownloadUrl, resolvePnpmVersion } from "./pnpm.js";
 
 export async function setupPnpmAction() {
+  const versionInput = await getVersionInput();
+
   logInfo("Resolve pnpm version");
-  const version = await resolvePnpmVersion(getInput("version").trim());
+  const version = await resolvePnpmVersion(versionInput);
 
   const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
   await setEnv("PNPM_HOME", pnpmHome);
