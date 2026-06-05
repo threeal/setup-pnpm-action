@@ -72,6 +72,6 @@ Individual commands (manual fallback if needed): `pnpm prettier --write .`, `pnp
 CI has two jobs:
 
 - **Check** — runs `lefthook run pre-commit --all-files` (install, format, lint, type-check, build), then runs the full test suite with `pnpm vitest run`.
-- **Test** — checks out the action itself and runs it on `ubuntu-24.04`, `ubuntu-24.04-arm`, `ubuntu-22.04`, `ubuntu-22.04-arm`, `macos-15`, `macos-14`, `windows-2025`, and `windows-2022` to verify the actual action behavior end-to-end.
+- **Test** — checks out the action itself and runs it on `ubuntu-24.04`, `ubuntu-24.04-arm`, `windows-2025`, `windows-11-arm`, `macos-15`, and `macos-15-intel` to verify the actual action behavior end-to-end across all supported OS and architecture combinations.
 
 See `.github/workflows/ci.yaml` for full details.
