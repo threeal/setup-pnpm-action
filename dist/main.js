@@ -13,15 +13,23 @@ function logError(err, options) {
   const params = "";
   process.stdout.write(`::error${params}::${message}${EOL}`);
 }
+function logCommand(command, ...args) {
+  const message = [command, ...args].join(" ");
+  process.stdout.write(`[command]${message}${EOL}`);
+}
+function beginLogGroup(name) {
+  process.stdout.write(`::group::${name}${EOL}`);
+}
+function endLogGroup() {
+  process.stdout.write(`::endgroup::${EOL}`);
+}
 function exec(command, args, opts) {
   return new Promise((resolve, reject) => {
-    const stdoutMode = opts?.stdout ?? "inherit";
-    const stderrMode = opts?.stderr ?? "inherit";
     const proc = spawn(command, args, {
       stdio: [
         "inherit",
-        stdoutMode === "inherit" ? "inherit" : stdoutMode === "capture" ? "pipe" : "ignore",
-        stderrMode === "inherit" ? "inherit" : stderrMode === "capture" ? "pipe" : "ignore"
+        "inherit" ,
+        "inherit" 
       ]
     });
     const stdoutChunks = [];
@@ -35,16 +43,7 @@ function exec(command, args, opts) {
     proc.on("error", reject);
     proc.on("close", (code) => {
       if (code === 0) {
-        if (stdoutMode === "capture" || stderrMode === "capture") {
-          const result = {};
-          if (stdoutMode === "capture") {
-            result.stdout = Buffer.concat(stdoutChunks).toString();
-          }
-          if (stderrMode === "capture") {
-            result.stderr = Buffer.concat(stderrChunks).toString();
-          }
-          resolve(result);
-        } else {
+        {
           resolve();
         }
       } else {
@@ -80,18 +79,18 @@ async function addPath(sysPath) {
 async function extractArchive(archiveFile, outputDir) {
   const ext = extname(archiveFile);
   switch (ext) {
-    case ".gz":
-      await exec("tar", ["-xzf", archiveFile, "-C", outputDir], {
-        stdout: "silent",
-        stderr: "silent"
-      });
+    case ".gz": {
+      const args = ["-xzvf", archiveFile, "-C", outputDir];
+      logCommand("tar", ...args);
+      await exec("tar", args);
       break;
-    case ".zip":
-      await exec("unzip", [archiveFile, "-d", outputDir], {
-        stdout: "silent",
-        stderr: "silent"
-      });
+    }
+    case ".zip": {
+      const args = [archiveFile, "-d", outputDir];
+      logCommand("unzip", ...args);
+      await exec("unzip", args);
       break;
+    }
     default:
       throw new Error(`Unsupported archive extension: ${ext}`);
   }
@@ -184,17 +183,24 @@ async function setupPnpmAction() {
     default:
       dlOut = join(pnpmHome, `pnpm${dlFileExt}`);
   }
-  logInfo(`Download pnpm ${version}`);
-  await exec("curl", ["-fLSs", "--output", dlOut, dlUrl.href], {
-    stdout: "silent",
-    stderr: "silent"
-  });
+  beginLogGroup(`Download pnpm ${version}`);
+  try {
+    const args = ["-fL", "--output", dlOut, dlUrl.href];
+    logCommand("curl", ...args);
+    await exec("curl", args);
+  } finally {
+    endLogGroup();
+  }
   const dlOutExt = extname(dlOut);
   switch (dlOutExt) {
     case ".gz":
     case ".zip":
-      logInfo("Extract archive");
-      await extractArchive(dlOut, pnpmHome);
+      beginLogGroup("Extract archive");
+      try {
+        await extractArchive(dlOut, pnpmHome);
+      } finally {
+        endLogGroup();
+      }
       logInfo("Remove archive");
       await rm(dlOut);
       break;

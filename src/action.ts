@@ -1,6 +1,6 @@
 import { exec } from "ghakit/exec";
 import { addPath, getInput, setEnv } from "ghakit/io";
-import { logInfo } from "ghakit/log";
+import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { chmod, mkdir, rm } from "node:fs/promises";
 import { arch, platform } from "node:os";
@@ -36,18 +36,25 @@ export async function setupPnpmAction() {
       dlOut = join(pnpmHome, `pnpm${dlFileExt}`);
   }
 
-  logInfo(`Download pnpm ${version}`);
-  await exec("curl", ["-fLSs", "--output", dlOut, dlUrl.href], {
-    stdout: "silent",
-    stderr: "silent",
-  });
+  beginLogGroup(`Download pnpm ${version}`);
+  try {
+    const args: string[] = ["-fL", "--output", dlOut, dlUrl.href];
+    logCommand("curl", ...args);
+    await exec("curl", args);
+  } finally {
+    endLogGroup();
+  }
 
   const dlOutExt = extname(dlOut);
   switch (dlOutExt) {
     case ".gz":
     case ".zip":
-      logInfo("Extract archive");
-      await extractArchive(dlOut, pnpmHome);
+      beginLogGroup("Extract archive");
+      try {
+        await extractArchive(dlOut, pnpmHome);
+      } finally {
+        endLogGroup();
+      }
 
       logInfo("Remove archive");
       await rm(dlOut);

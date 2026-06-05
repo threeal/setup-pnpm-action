@@ -1,5 +1,5 @@
 import { addPath, getInput, setEnv } from "ghakit/io";
-import { logInfo } from "ghakit/log";
+import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { execFile } from "node:child_process";
 import { mkdir, rm } from "node:fs/promises";
@@ -20,6 +20,14 @@ import { setupPnpmAction } from "./action.js";
 import { resolvePnpmVersion } from "./pnpm.js";
 
 const execFileAsync = promisify(execFile);
+
+vi.mock(import("ghakit/exec"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    exec: (command, args) =>
+      original.exec(command, args, { stdout: "silent", stderr: "silent" }),
+  } as typeof original;
+});
 
 vi.mock(import("ghakit/io"));
 vi.mock(import("ghakit/log"));
@@ -56,6 +64,11 @@ describe("setupPnpmAction", () => {
   beforeEach(() => {
     logs = [];
     vi.mocked(logInfo).mockImplementation((message) => logs.push(message));
+    vi.mocked(logCommand).mockImplementation(() => logs.push("[command]"));
+    vi.mocked(beginLogGroup).mockImplementation((name) =>
+      logs.push(`[begin] ${name}`),
+    );
+    vi.mocked(endLogGroup).mockImplementation(() => logs.push("[end]"));
     vi.mocked(getRunnerToolCache).mockReturnValue(join(tmpDir, "cache"));
   });
 
@@ -68,8 +81,12 @@ describe("setupPnpmAction", () => {
     expect(logs).toStrictEqual([
       "Resolve pnpm version",
       "Create pnpm home",
-      `Download pnpm ${version}`,
-      "Extract archive",
+      `[begin] Download pnpm ${version}`,
+      "[command]",
+      "[end]",
+      "[begin] Extract archive",
+      "[command]",
+      "[end]",
       "Remove archive",
       "Add pnpm to PATH",
     ]);
@@ -92,7 +109,9 @@ describe("setupPnpmAction", () => {
     expect(logs).toStrictEqual([
       "Resolve pnpm version",
       "Create pnpm home",
-      `Download pnpm ${version}`,
+      `[begin] Download pnpm ${version}`,
+      "[command]",
+      "[end]",
       "Set file permissions",
       "Add pnpm to PATH",
     ]);
