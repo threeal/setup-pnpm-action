@@ -1,16 +1,17 @@
 name: Setup Standalone pnpm
 author: Alfi Maulana
-description: Set up standalone pnpm with a specified version
+description: Set up standalone pnpm on the runner
 branding:
   icon: package
   color: orange
 inputs:
   version:
-    description: The version or tag of pnpm to set up.
+    description: The version of pnpm to install. Defaults to the latest version.
+    required: false
     default: latest
 outputs:
   version:
-    description: Resolved version of pnpm that was installed.
+    description: The version of pnpm that was installed.
 runs:
   using: node24
   main: dist/main.js
