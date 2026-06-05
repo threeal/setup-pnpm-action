@@ -4,5 +4,6 @@
 !.gitignore
 !.npmrc
 !.prettierignore
+!.prettierrc.json
 
 node_modules/
