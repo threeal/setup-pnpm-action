@@ -2,11 +2,11 @@ import { exec } from "ghakit/exec";
 import { addPath, setEnv, setOutput } from "ghakit/io";
 import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
-import { access, chmod, mkdir, rm } from "node:fs/promises";
+import { access, mkdir, rm } from "node:fs/promises";
 import { arch, platform } from "node:os";
 import { extname, join } from "node:path";
-import { extractArchive } from "./archive.js";
 import { getVersionInput } from "./input.js";
+import { extractArchive, makeExecutable } from "./install.js";
 import { getPnpmDownloadUrl, resolvePnpmVersion } from "./pnpm.js";
 
 export async function setupPnpmAction() {
@@ -70,8 +70,7 @@ export async function setupPnpmAction() {
         break;
 
       default:
-        logInfo("Set file permissions");
-        await chmod(dlOut, "755");
+        await makeExecutable(dlOut);
     }
   }
 
