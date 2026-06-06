@@ -1,6 +1,7 @@
 import { getInput } from "ghakit/io";
 import { logError, logInfo } from "ghakit/log";
 import { mkdir, rm, writeFile } from "node:fs/promises";
+import { arch, platform } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { chdir } from "node:process";
 import {
@@ -12,10 +13,22 @@ import {
   test,
   vi,
 } from "vitest";
-import { extractVersionFromPackageJson, getVersionInput } from "./input.js";
+import {
+  Arch,
+  extractVersionFromPackageJson,
+  getArch,
+  getPlatform,
+  getVersionInput,
+  Platform,
+} from "./input.js";
 
 vi.mock(import("ghakit/io"));
 vi.mock(import("ghakit/log"));
+vi.mock(import("node:os"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  arch: vi.fn(),
+  platform: vi.fn(),
+}));
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -31,6 +44,38 @@ beforeAll(async () => {
 });
 
 afterAll(() => rm(tmpDir, { force: true, recursive: true }));
+
+describe("getPlatform", () => {
+  const platforms: { val: Platform }[] = [
+    { val: "linux" },
+    { val: "darwin" },
+    { val: "win32" },
+  ];
+
+  test.each(platforms)("returns $val", ({ val }) => {
+    vi.mocked(platform).mockReturnValue(val);
+    expect(getPlatform()).toBe(val);
+  });
+
+  test("throws for unsupported platform", () => {
+    vi.mocked(platform).mockReturnValue("freebsd");
+    expect(() => getPlatform()).toThrow("Unsupported platform: freebsd");
+  });
+});
+
+describe("getArch", () => {
+  const archs: { val: Arch }[] = [{ val: "x64" }, { val: "arm64" }];
+
+  test.each(archs)("returns $arch", ({ val }) => {
+    vi.mocked(arch).mockReturnValue(val);
+    expect(getArch()).toBe(val);
+  });
+
+  test("throws for unsupported arch", () => {
+    vi.mocked(arch).mockReturnValue("ia32");
+    expect(() => getArch()).toThrow("Unsupported arch: ia32");
+  });
+});
 
 describe("extractVersionFromPackageJson", () => {
   test("returns the version", () => {

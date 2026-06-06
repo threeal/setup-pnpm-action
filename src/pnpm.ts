@@ -1,3 +1,5 @@
+import { Arch, Platform } from "./input.js";
+
 export async function resolvePnpmVersionFromResponse(
   version: string,
   res: Response,
@@ -42,48 +44,36 @@ export function getPnpmDownloadUrl({
   arch,
 }: {
   version: string;
-  platform: string;
-  arch: string;
+  platform: Platform;
+  arch: Arch;
 }): URL {
   const match = /^(\d+)/.exec(version);
   if (!match) throw new Error(`Invalid version: ${version}`);
   const major = parseInt(match[1], 10);
 
-  let os: string;
-  switch (platform) {
-    case "linux":
-      os = "linux";
-      break;
-    case "darwin":
-      os = "macos";
-      break;
-    case "win32":
-      os = "win";
-      break;
-    default:
-      throw new Error(`Unsupported platform: ${platform}`);
+  const baseUrl = `https://github.com/pnpm/pnpm/releases/download/v${version}`;
+  if (major >= 11) {
+    if (platform === "darwin" && arch === "x64") {
+      throw new Error(
+        "pnpm does not provide x64 macOS binaries for version 11 and above",
+      );
+    }
+    const ext = platform == "win32" ? ".zip" : ".tar.gz";
+    return new URL(`${baseUrl}/pnpm-${platform}-${arch}${ext}`);
+  } else {
+    let os: string;
+    switch (platform) {
+      case "linux":
+        os = "linux";
+        break;
+      case "darwin":
+        os = "macos";
+        break;
+      case "win32":
+        os = "win";
+        break;
+    }
+    const ext = platform === "win32" ? ".exe" : "";
+    return new URL(`${baseUrl}/pnpm-${os}-${arch}${ext}`);
   }
-
-  switch (arch) {
-    case "x64":
-      if (platform === "darwin" && major >= 11) {
-        throw new Error(
-          "pnpm does not provide x64 macOS binaries for version 11 and above",
-        );
-      }
-      break;
-    case "arm64":
-      break;
-    default:
-      throw new Error(`Unsupported arch: ${arch}`);
-  }
-
-  const file =
-    major >= 11
-      ? `pnpm-${platform}-${arch}${platform == "win32" ? ".zip" : ".tar.gz"}`
-      : `pnpm-${os}-${arch}${platform === "win32" ? ".exe" : ""}`;
-
-  return new URL(
-    `https://github.com/pnpm/pnpm/releases/download/v${version}/${file}`,
-  );
 }

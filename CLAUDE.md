@@ -12,11 +12,11 @@ This is a JavaScript GitHub Action that downloads and sets up a standalone pnpm 
 
 - **`src/main.ts`** — Entry point that calls the action function and handles error logging and exit codes.
 - **`src/action.ts`** — The action implementation; resolves the pnpm version, sets `PNPM_HOME` to `getRunnerToolCache()/pnpm/<version>/`, downloads the binary into the runner tool cache if not already cached, extracts or sets permissions on it, adds it to `PATH`, and sets the `version` output.
-- **`src/input.ts`** — Reads the `version` and `version-file` action inputs and resolves them to a version string; parses `package.json` to extract the version from the `packageManager` field when `version-file` is used or when neither input is set and a `package.json` exists in the current directory.
+- **`src/input.ts`** — Reads the `version` and `version-file` action inputs and resolves them to a version string; parses `package.json` to extract the version from the `packageManager` field when `version-file` is used or when neither input is set and a `package.json` exists in the current directory. Also exports `getPlatform()` and `getArch()`, which validate and return the current `Platform` (`linux | darwin | win32`) and `Arch` (`x64 | arm64`) from `node:os`, throwing on unsupported values.
 - **`src/pnpm.ts`** — pnpm-specific utilities: resolves the pnpm version from the NPM registry, and builds the download URL for a given version, platform, and arch.
 - **`src/install.ts`** — `extractArchive(archiveFile, outputDir)` extracts `.tar.gz` archives via `tar` and `.zip` archives via `unzip`; `makeExecutable(file)` sets executable permissions on the file, or skips if the file has a `.exe` extension.
 - **`src/action.test.ts`** — Integration tests for the action with a mocked GitHub Actions environment and a real binary download.
-- **`src/input.test.ts`** — Tests for `extractVersionFromPackageJson` and `getVersionInput` in `input.ts`.
+- **`src/input.test.ts`** — Tests for `getPlatform`, `getArch`, `extractVersionFromPackageJson`, and `getVersionInput` in `input.ts`.
 - **`src/pnpm.test.ts`** — Tests for the pure functions in `pnpm.ts`, including live network calls.
 - **`src/install.test.ts`** — Tests for `extractArchive` and `makeExecutable` in `install.ts`.
 

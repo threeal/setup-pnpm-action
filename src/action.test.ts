@@ -33,7 +33,10 @@ vi.mock(import("ghakit/exec"), async (importOriginal) => {
 vi.mock(import("ghakit/io"));
 vi.mock(import("ghakit/log"));
 vi.mock(import("ghakit/vars"));
-vi.mock(import("./input.js"));
+vi.mock(import("./input.js"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  getVersionInput: vi.fn(),
+}));
 
 beforeEach(() => vi.clearAllMocks());
 

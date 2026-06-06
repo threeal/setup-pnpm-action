@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { Arch, Platform } from "./input.js";
 import {
   getPnpmDownloadUrl,
   resolvePnpmVersion,
@@ -75,8 +76,12 @@ describe("resolvePnpmVersion", { concurrent: true }, () => {
 describe("getPnpmDownloadUrl", { concurrent: true }, () => {
   const combinations = ["10.34.0", "11.5.0"]
     .flatMap((version) =>
-      ["linux", "darwin", "win32"].flatMap((platform) =>
-        ["x64", "arm64"].map((arch) => ({ version, platform, arch })),
+      (["linux", "darwin", "win32"] satisfies Platform[]).flatMap((platform) =>
+        (["x64", "arm64"] satisfies Arch[]).map((arch) => ({
+          version,
+          platform,
+          arch,
+        })),
       ),
     )
     .filter(
@@ -105,26 +110,6 @@ describe("getPnpmDownloadUrl", { concurrent: true }, () => {
     expect(() =>
       getPnpmDownloadUrl({ version: "latest", platform: "linux", arch: "x64" }),
     ).toThrow("Invalid version: latest");
-  });
-
-  test("throws when platform is unsupported", () => {
-    expect(() =>
-      getPnpmDownloadUrl({
-        version: "10.34.0",
-        platform: "freebsd",
-        arch: "x64",
-      }),
-    ).toThrow("Unsupported platform: freebsd");
-  });
-
-  test("throws when arch is unsupported", () => {
-    expect(() =>
-      getPnpmDownloadUrl({
-        version: "10.34.0",
-        platform: "linux",
-        arch: "ia32",
-      }),
-    ).toThrow("Unsupported arch: ia32");
   });
 
   test("throws for x64 macOS on version 11 and above", () => {

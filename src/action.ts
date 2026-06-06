@@ -3,13 +3,15 @@ import { addPath, setEnv, setOutput } from "ghakit/io";
 import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { access, mkdir, rm } from "node:fs/promises";
-import { arch, platform } from "node:os";
 import { extname, join } from "node:path";
-import { getVersionInput } from "./input.js";
+import { getArch, getPlatform, getVersionInput } from "./input.js";
 import { extractArchive, makeExecutable } from "./install.js";
 import { getPnpmDownloadUrl, resolvePnpmVersion } from "./pnpm.js";
 
 export async function setupPnpmAction() {
+  const platform = getPlatform();
+  const arch = getArch();
+
   const versionInput = await getVersionInput();
 
   logInfo("Resolve pnpm version");
@@ -22,16 +24,11 @@ export async function setupPnpmAction() {
     await access(pnpmHome);
     logInfo(`Use cached pnpm ${version}`);
   } catch {
+    const dlUrl = getPnpmDownloadUrl({ version, platform, arch });
+    const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
+
     logInfo("Create pnpm home");
     await mkdir(pnpmHome, { recursive: true });
-
-    const dlUrl = getPnpmDownloadUrl({
-      version,
-      platform: platform(),
-      arch: arch(),
-    });
-
-    const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
 
     let dlOut: string;
     const dlFileExt = extname(dlFile);
