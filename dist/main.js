@@ -1,7 +1,7 @@
 import { arch, platform, EOL } from 'os';
 import { spawn } from 'child_process';
 import 'fs';
-import { access, mkdir, chmod, rm, readFile, appendFile } from 'fs/promises';
+import { access, mkdir, rm, readFile, appendFile, chmod } from 'fs/promises';
 import { join, extname, basename, delimiter } from 'path';
 
 // node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/log.js
@@ -82,25 +82,6 @@ async function addPath(sysPath) {
   process.env.PATH = process.env.PATH !== void 0 ? `${sysPath}${delimiter}${process.env.PATH}` : sysPath;
   await appendFile(getGitHubPath(), `${sysPath}${EOL}`);
 }
-async function extractArchive(archiveFile, outputDir) {
-  const ext = extname(archiveFile);
-  switch (ext) {
-    case ".gz": {
-      const args = ["-xzvf", archiveFile, "-C", outputDir];
-      logCommand("tar", ...args);
-      await exec("tar", args);
-      break;
-    }
-    case ".zip": {
-      const args = [archiveFile, "-d", outputDir];
-      logCommand("unzip", ...args);
-      await exec("unzip", args);
-      break;
-    }
-    default:
-      throw new Error(`Unsupported archive extension: ${ext}`);
-  }
-}
 function extractVersionFromPackageJson(packageJson) {
   if (typeof packageJson !== "object" || packageJson === null) {
     throw new Error("package.json must be an object");
@@ -159,6 +140,30 @@ async function getVersionInput() {
     logInfo("No version specified, use latest");
     return "latest";
   }
+}
+async function extractArchive(archiveFile, outputDir) {
+  const ext = extname(archiveFile);
+  switch (ext) {
+    case ".gz": {
+      const args = ["-xzvf", archiveFile, "-C", outputDir];
+      logCommand("tar", ...args);
+      await exec("tar", args);
+      break;
+    }
+    case ".zip": {
+      const args = [archiveFile, "-d", outputDir];
+      logCommand("unzip", ...args);
+      await exec("unzip", args);
+      break;
+    }
+    default:
+      throw new Error(`Unsupported archive extension: ${ext}`);
+  }
+}
+async function makeExecutable(file) {
+  if (extname(file) === ".exe") return;
+  logInfo("Set file permissions");
+  await chmod(file, "755");
 }
 
 // src/pnpm.ts
@@ -276,8 +281,7 @@ async function setupPnpmAction() {
         await rm(dlOut);
         break;
       default:
-        logInfo("Set file permissions");
-        await chmod(dlOut, "755");
+        await makeExecutable(dlOut);
     }
   }
   logInfo("Add pnpm to PATH");

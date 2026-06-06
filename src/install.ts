@@ -1,5 +1,6 @@
 import { exec } from "ghakit/exec";
-import { logCommand } from "ghakit/log";
+import { logCommand, logInfo } from "ghakit/log";
+import { chmod } from "node:fs/promises";
 import { extname } from "node:path";
 
 export async function extractArchive(archiveFile: string, outputDir: string) {
@@ -22,4 +23,10 @@ export async function extractArchive(archiveFile: string, outputDir: string) {
     default:
       throw new Error(`Unsupported archive extension: ${ext}`);
   }
+}
+
+export async function makeExecutable(file: string) {
+  if (extname(file) === ".exe") return;
+  logInfo("Set file permissions");
+  await chmod(file, "755");
 }
