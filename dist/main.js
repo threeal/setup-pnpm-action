@@ -1,4 +1,4 @@
-import { arch, platform, EOL } from 'os';
+import { EOL, platform, arch } from 'os';
 import { spawn } from 'child_process';
 import 'fs';
 import { access, mkdir, rm, readFile, appendFile, chmod } from 'fs/promises';
@@ -81,6 +81,27 @@ async function setEnv(name, value) {
 async function addPath(sysPath) {
   process.env.PATH = process.env.PATH !== void 0 ? `${sysPath}${delimiter}${process.env.PATH}` : sysPath;
   await appendFile(getGitHubPath(), `${sysPath}${EOL}`);
+}
+function getPlatform() {
+  const val = platform();
+  switch (val) {
+    case "linux":
+    case "darwin":
+    case "win32":
+      return val;
+    default:
+      throw new Error(`Unsupported platform: ${val}`);
+  }
+}
+function getArch() {
+  const val = arch();
+  switch (val) {
+    case "x64":
+    case "arm64":
+      return val;
+    default:
+      throw new Error(`Unsupported arch: ${val}`);
+  }
 }
 function extractVersionFromPackageJson(packageJson) {
   if (typeof packageJson !== "object" || packageJson === null) {
@@ -197,41 +218,37 @@ function getPnpmDownloadUrl({
   const match = /^(\d+)/.exec(version);
   if (!match) throw new Error(`Invalid version: ${version}`);
   const major = parseInt(match[1], 10);
-  let os;
-  switch (platform2) {
-    case "linux":
-      os = "linux";
-      break;
-    case "darwin":
-      os = "macos";
-      break;
-    case "win32":
-      os = "win";
-      break;
-    default:
-      throw new Error(`Unsupported platform: ${platform2}`);
+  const baseUrl = `https://github.com/pnpm/pnpm/releases/download/v${version}`;
+  if (major >= 11) {
+    if (platform2 === "darwin" && arch2 === "x64") {
+      throw new Error(
+        "pnpm does not provide x64 macOS binaries for version 11 and above"
+      );
+    }
+    const ext = platform2 == "win32" ? ".zip" : ".tar.gz";
+    return new URL(`${baseUrl}/pnpm-${platform2}-${arch2}${ext}`);
+  } else {
+    let os;
+    switch (platform2) {
+      case "linux":
+        os = "linux";
+        break;
+      case "darwin":
+        os = "macos";
+        break;
+      case "win32":
+        os = "win";
+        break;
+    }
+    const ext = platform2 === "win32" ? ".exe" : "";
+    return new URL(`${baseUrl}/pnpm-${os}-${arch2}${ext}`);
   }
-  switch (arch2) {
-    case "x64":
-      if (platform2 === "darwin" && major >= 11) {
-        throw new Error(
-          "pnpm does not provide x64 macOS binaries for version 11 and above"
-        );
-      }
-      break;
-    case "arm64":
-      break;
-    default:
-      throw new Error(`Unsupported arch: ${arch2}`);
-  }
-  const file = major >= 11 ? `pnpm-${platform2}-${arch2}${platform2 == "win32" ? ".zip" : ".tar.gz"}` : `pnpm-${os}-${arch2}${platform2 === "win32" ? ".exe" : ""}`;
-  return new URL(
-    `https://github.com/pnpm/pnpm/releases/download/v${version}/${file}`
-  );
 }
 
 // src/action.ts
 async function setupPnpmAction() {
+  const platform2 = getPlatform();
+  const arch2 = getArch();
   const versionInput = await getVersionInput();
   logInfo("Resolve pnpm version");
   const version = await resolvePnpmVersion(versionInput);
@@ -241,14 +258,10 @@ async function setupPnpmAction() {
     await access(pnpmHome);
     logInfo(`Use cached pnpm ${version}`);
   } catch {
+    const dlUrl = getPnpmDownloadUrl({ version, platform: platform2, arch: arch2 });
+    const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
     logInfo("Create pnpm home");
     await mkdir(pnpmHome, { recursive: true });
-    const dlUrl = getPnpmDownloadUrl({
-      version,
-      platform: platform(),
-      arch: arch()
-    });
-    const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
     let dlOut;
     const dlFileExt = extname(dlFile);
     switch (dlFileExt) {
