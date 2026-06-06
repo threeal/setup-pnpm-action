@@ -1,5 +1,5 @@
 import { getInput } from "ghakit/io";
-import { logInfo } from "ghakit/log";
+import { logError, logInfo } from "ghakit/log";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
@@ -56,6 +56,18 @@ export async function getVersionInput(): Promise<string> {
     }
   }
 
-  logInfo("No version specified, use latest");
-  return "latest";
+  try {
+    const content = await readFile("package.json", "utf-8");
+    logInfo("No version specified, read version from package.json");
+    try {
+      return extractVersionFromPackageJson(JSON.parse(content));
+    } catch (err) {
+      logError(err);
+      logInfo("Failed to read version from package.json, use latest");
+      return "latest";
+    }
+  } catch {
+    logInfo("No version specified, use latest");
+    return "latest";
+  }
 }

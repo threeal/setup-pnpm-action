@@ -17,8 +17,6 @@ jobs:
 
       - name: Setup pnpm
         uses: ./
-        with:
-          version-file: package.json
 
       - name: Check pre-commit hook
         run: lefthook run pre-commit --all-files
@@ -79,6 +77,22 @@ jobs:
           test "$version" = "10.34.0"
           test "$version" = "${{ steps.setup-pnpm-version.outputs.version }}"
 
+      - name: Setup pnpm from cache
+        id: setup-pnpm-cached
+        if: matrix.os != 'macos-15-intel'
+        uses: ./setup-pnpm-action
+        env:
+          PATH: "" # forces cache usage by making curl unavailable
+
+      - name: Verify pnpm version
+        if: matrix.os != 'macos-15-intel'
+        shell: bash
+        run: |
+          version="$(pnpm --version)"
+          echo "$version"
+          test "$version" != "10.34.0"
+          test "$version" = "${{ steps.setup-pnpm-cached.outputs.version }}"
+
       - name: Write package.json
         shell: bash
         run: |
@@ -96,23 +110,29 @@ jobs:
         if: matrix.os != 'windows-11-arm'
         shell: bash
         run: |
+          rm -rf project
           version="$(pnpm --version)"
           echo "$version"
           test "$version" = "9.15.0"
           test "$version" = "${{ steps.setup-pnpm-version-file.outputs.version }}"
 
-      - name: Setup pnpm from cache
-        id: setup-pnpm-cached
-        if: matrix.os != 'macos-15-intel'
+      - name: Write package.json
+        shell: bash
+        run: echo '{"packageManager":"pnpm@9.15.0"}' > package.json
+
+      - name: Setup pnpm from cache with package.json
+        id: setup-pnpm-cached-package-json
         uses: ./setup-pnpm-action
         env:
           PATH: "" # forces cache usage by making curl unavailable
 
       - name: Verify pnpm version
-        if: matrix.os != 'macos-15-intel'
+        # TODO: pnpm v10 and below verification keeps failing on Windows arm64 runners
+        if: matrix.os != 'windows-11-arm'
         shell: bash
         run: |
+          rm package.json
           version="$(pnpm --version)"
           echo "$version"
-          test "$version" != "10.34.0"
-          test "$version" = "${{ steps.setup-pnpm-cached.outputs.version }}"
+          test "$version" = "9.15.0"
+          test "$version" = "${{ steps.setup-pnpm-cached-package-json.outputs.version }}"

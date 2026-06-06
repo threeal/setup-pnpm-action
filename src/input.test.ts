@@ -1,7 +1,8 @@
 import { getInput } from "ghakit/io";
-import { logInfo } from "ghakit/log";
+import { logError, logInfo } from "ghakit/log";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
+import { chdir } from "node:process";
 import {
   afterAll,
   beforeAll,
@@ -26,6 +27,7 @@ const tmpDir = resolve(
 beforeAll(async () => {
   await rm(tmpDir, { force: true, recursive: true });
   await mkdir(tmpDir, { recursive: true });
+  chdir(tmpDir);
 });
 
 afterAll(() => rm(tmpDir, { force: true, recursive: true }));
@@ -83,24 +85,54 @@ describe("extractVersionFromPackageJson", () => {
 });
 
 describe("getVersionInput", () => {
+  beforeEach(() => rm("package.json", { force: true }));
+
   test("returns latest when no inputs are set", async () => {
     vi.mocked(getInput).mockReturnValue("");
+
     await expect(getVersionInput()).resolves.toBe("latest");
     expect(vi.mocked(logInfo).mock.calls).toStrictEqual([
       ["No version specified, use latest"],
     ]);
   });
 
+  test("reads version from package.json when no inputs are set", async () => {
+    await writeFile(
+      "package.json",
+      JSON.stringify({ packageManager: "pnpm@11.5.0" }),
+    );
+    vi.mocked(getInput).mockReturnValue("");
+
+    await expect(getVersionInput()).resolves.toBe("11.5.0");
+    expect(vi.mocked(logInfo).mock.calls).toStrictEqual([
+      ["No version specified, read version from package.json"],
+    ]);
+  });
+
+  test("returns latest when package.json is invalid and no inputs are set", async () => {
+    await writeFile("package.json", "{}");
+    vi.mocked(getInput).mockReturnValue("");
+
+    await expect(getVersionInput()).resolves.toBe("latest");
+    expect(vi.mocked(logInfo).mock.calls).toStrictEqual([
+      ["No version specified, read version from package.json"],
+      ["Failed to read version from package.json, use latest"],
+    ]);
+    expect(logError).toHaveBeenCalledOnce();
+  });
+
   test("returns the version input", async () => {
     vi.mocked(getInput).mockImplementation((name) =>
       name === "version" ? "11.5.0" : "",
     );
+
     await expect(getVersionInput()).resolves.toBe("11.5.0");
     expect(vi.mocked(logInfo).mock.calls).toStrictEqual([]);
   });
 
   test("reads version from package.json", async () => {
-    const packageJsonPath = join(tmpDir, "package.json");
+    await mkdir("package", { recursive: true });
+    const packageJsonPath = join("package", "package.json");
     await writeFile(
       packageJsonPath,
       JSON.stringify({ packageManager: "pnpm@11.5.0" }),
@@ -125,6 +157,7 @@ describe("getVersionInput", () => {
       }
       return "";
     });
+
     await expect(getVersionInput()).rejects.toThrow(
       "Cannot specify both `version` and `version-file` inputs",
     );
@@ -132,8 +165,9 @@ describe("getVersionInput", () => {
 
   test("throws for unsupported version file", async () => {
     vi.mocked(getInput).mockImplementation((name) =>
-      name === "version-file" ? join(tmpDir, ".npmrc") : "",
+      name === "version-file" ? ".npmrc" : "",
     );
+
     await expect(getVersionInput()).rejects.toThrow(
       "Unsupported version file: .npmrc",
     );
