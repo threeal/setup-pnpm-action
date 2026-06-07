@@ -90,9 +90,14 @@ describe("getPnpmDownloadUrl", { concurrent: true }, () => {
     );
 
   test("returns unique URLs for each combination", () => {
-    const urls = combinations.map(({ version, platform, arch }) =>
-      getPnpmDownloadUrl({ version, platform, arch }),
-    );
+    const urls = combinations.map(({ version, platform, arch }) => {
+      const { baseUrl, filename, ext } = getPnpmDownloadUrl({
+        version,
+        platform,
+        arch,
+      });
+      return `${baseUrl}/${filename}${ext}`;
+    });
     expect(new Set(urls).size).toBe(combinations.length);
   });
 
@@ -100,7 +105,12 @@ describe("getPnpmDownloadUrl", { concurrent: true }, () => {
     "returns accessible URL for $version/$platform/$arch",
     { timeout: 30000 },
     async ({ version, platform, arch }) => {
-      const url = getPnpmDownloadUrl({ version, platform, arch });
+      const { baseUrl, filename, ext } = getPnpmDownloadUrl({
+        version,
+        platform,
+        arch,
+      });
+      const url = `${baseUrl}/${filename}${ext}`;
       const res = await fetch(url, { method: "HEAD" });
       expect(res.ok).toBe(true);
     },
