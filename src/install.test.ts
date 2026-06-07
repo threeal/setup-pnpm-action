@@ -51,7 +51,7 @@ describe("extractArchive", () => {
     await execFileAsync("tar", ["-czf", file, "-C", tmpDir, "tar"]);
     await rm(join(tmpDir, "tar"), { force: true, recursive: true });
 
-    await extractArchive(file, tmpDir);
+    await extractArchive(file, ".tar.gz", tmpDir);
 
     expect(logCommand).toHaveBeenCalledOnce();
 
@@ -67,45 +67,35 @@ describe("extractArchive", () => {
     await execFileAsync("zip", ["-r", file, "zip"], { cwd: tmpDir });
     await rm(join(tmpDir, "zip"), { force: true, recursive: true });
 
-    await extractArchive(file, tmpDir);
+    await extractArchive(file, ".zip", tmpDir);
 
     expect(logCommand).toHaveBeenCalledOnce();
 
     const content = await readFile(join(tmpDir, "zip", "foo", "bar"), "utf-8");
     expect(content).toBe("foo bar");
   });
-
-  test("throws for unsupported archive extension", async () => {
-    await writeFile("archive.7z", "");
-
-    await expect(extractArchive("archive.7z", tmpDir)).rejects.toThrow(
-      "Unsupported archive extension: .7z",
-    );
-
-    expect(logCommand).not.toHaveBeenCalled();
-  });
 });
 
 describe("makeExecutable", () => {
-  test("sets file permissions for files without extension", async () => {
+  test("makes pnpm executable for files without extension", async () => {
     const file = join(tmpDir, "pnpm");
     await writeFile(file, "");
 
-    await makeExecutable(file);
+    await makeExecutable(file, "");
 
     expect(vi.mocked(logInfo).mock.calls).toStrictEqual([
-      ["Set file permissions"],
+      ["Make pnpm executable"],
     ]);
 
     const { mode } = await stat(file);
     expect(mode & 0o111).toBeGreaterThan(0);
   });
 
-  test("skips setting file permissions for .exe files", async () => {
+  test("skips making .exe files executable", async () => {
     const file = join(tmpDir, "pnpm.exe");
     await writeFile(file, "");
 
-    await makeExecutable(file);
+    await makeExecutable(file, ".exe");
 
     expect(logInfo).not.toHaveBeenCalled();
   });

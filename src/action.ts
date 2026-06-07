@@ -3,7 +3,7 @@ import { addPath, setEnv, setOutput } from "ghakit/io";
 import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { access, mkdir, rm } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { join } from "node:path";
 import { getArch, getPlatform, getVersionInput } from "./input.js";
 import { extractArchive, makeExecutable } from "./install.js";
 import { getPnpmDownloadUrl, resolvePnpmVersion } from "./pnpm.js";
@@ -24,50 +24,58 @@ export async function setupPnpmAction() {
     await access(pnpmHome);
     logInfo(`Use cached pnpm ${version}`);
   } catch {
-    const dlUrl = getPnpmDownloadUrl({ version, platform, arch });
-    const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
+    const { baseUrl, filename, ext } = getPnpmDownloadUrl({
+      version,
+      platform,
+      arch,
+    });
+    const url = `${baseUrl}/${filename}${ext}`;
 
     logInfo("Create pnpm home");
     await mkdir(pnpmHome, { recursive: true });
 
-    let dlOut: string;
-    const dlFileExt = extname(dlFile);
-    switch (dlFileExt) {
-      case ".gz":
-      case ".zip":
-        dlOut = join(pnpmHome, dlFile);
-        break;
+    switch (ext) {
+      case "":
+      case ".exe": {
+        const pnpmFile = join(pnpmHome, `pnpm${ext}`);
 
-      default:
-        dlOut = join(pnpmHome, `pnpm${dlFileExt}`);
-    }
-
-    beginLogGroup(`Download pnpm ${version}`);
-    try {
-      const args: string[] = ["-fL", "--output", dlOut, dlUrl.href];
-      logCommand("curl", ...args);
-      await exec("curl", args);
-    } finally {
-      endLogGroup();
-    }
-
-    const dlOutExt = extname(dlOut);
-    switch (dlOutExt) {
-      case ".gz":
-      case ".zip":
-        beginLogGroup("Extract archive");
+        beginLogGroup(`Download pnpm ${version} executable`);
         try {
-          await extractArchive(dlOut, pnpmHome);
+          const args: string[] = ["-fL", "--output", pnpmFile, url];
+          logCommand("curl", ...args);
+          await exec("curl", args);
         } finally {
           endLogGroup();
         }
 
-        logInfo("Remove archive");
-        await rm(dlOut);
+        await makeExecutable(pnpmFile, ext);
         break;
+      }
 
-      default:
-        await makeExecutable(dlOut);
+      case ".tar.gz":
+      case ".zip": {
+        const archiveFile = join(pnpmHome, filename);
+
+        beginLogGroup(`Download pnpm ${version} archive`);
+        try {
+          const args: string[] = ["-fL", "--output", archiveFile, url];
+          logCommand("curl", ...args);
+          await exec("curl", args);
+        } finally {
+          endLogGroup();
+        }
+
+        beginLogGroup("Extract pnpm archive");
+        try {
+          await extractArchive(archiveFile, ext, pnpmHome);
+        } finally {
+          endLogGroup();
+        }
+
+        logInfo("Remove pnpm archive");
+        await rm(archiveFile);
+        break;
+      }
     }
   }
 

@@ -46,21 +46,17 @@ export function getPnpmDownloadUrl({
   version: string;
   platform: Platform;
   arch: Arch;
-}): URL {
+}): {
+  baseUrl: string;
+  filename: string;
+  ext: "" | ".exe" | ".tar.gz" | ".zip";
+} {
   const match = /^(\d+)/.exec(version);
   if (!match) throw new Error(`Invalid version: ${version}`);
   const major = parseInt(match[1], 10);
 
   const baseUrl = `https://github.com/pnpm/pnpm/releases/download/v${version}`;
-  if (major >= 11) {
-    if (platform === "darwin" && arch === "x64") {
-      throw new Error(
-        "pnpm does not provide x64 macOS binaries for version 11 and above",
-      );
-    }
-    const ext = platform == "win32" ? ".zip" : ".tar.gz";
-    return new URL(`${baseUrl}/pnpm-${platform}-${arch}${ext}`);
-  } else {
+  if (major < 11) {
     let os: string;
     switch (platform) {
       case "linux":
@@ -73,7 +69,21 @@ export function getPnpmDownloadUrl({
         os = "win";
         break;
     }
-    const ext = platform === "win32" ? ".exe" : "";
-    return new URL(`${baseUrl}/pnpm-${os}-${arch}${ext}`);
+    return {
+      baseUrl,
+      filename: `pnpm-${os}-${arch}`,
+      ext: platform === "win32" ? ".exe" : "",
+    };
+  } else {
+    if (platform === "darwin" && arch === "x64") {
+      throw new Error(
+        "pnpm does not provide x64 macOS binaries for version 11 and above",
+      );
+    }
+    return {
+      baseUrl,
+      filename: `pnpm-${platform}-${arch}`,
+      ext: platform == "win32" ? ".zip" : ".tar.gz",
+    };
   }
 }

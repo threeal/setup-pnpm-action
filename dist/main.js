@@ -2,7 +2,7 @@ import { EOL, platform, arch } from 'os';
 import { spawn } from 'child_process';
 import 'fs';
 import { access, mkdir, rm, readFile, appendFile, chmod } from 'fs/promises';
-import { join, extname, basename, delimiter } from 'path';
+import { join, basename, delimiter } from 'path';
 
 // node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/log.js
 function logInfo(message) {
@@ -162,28 +162,25 @@ async function getVersionInput() {
     return "latest";
   }
 }
-async function extractArchive(archiveFile, outputDir) {
-  const ext = extname(archiveFile);
+async function extractArchive(file, ext, outputDir) {
   switch (ext) {
-    case ".gz": {
-      const args = ["-xzvf", archiveFile, "-C", outputDir];
+    case ".tar.gz": {
+      const args = ["-xzvf", file, "-C", outputDir];
       logCommand("tar", ...args);
       await exec("tar", args);
       break;
     }
     case ".zip": {
-      const args = [archiveFile, "-d", outputDir];
+      const args = [file, "-d", outputDir];
       logCommand("unzip", ...args);
       await exec("unzip", args);
       break;
     }
-    default:
-      throw new Error(`Unsupported archive extension: ${ext}`);
   }
 }
-async function makeExecutable(file) {
-  if (extname(file) === ".exe") return;
-  logInfo("Set file permissions");
+async function makeExecutable(file, ext) {
+  if (ext === ".exe") return;
+  logInfo("Make pnpm executable");
   await chmod(file, "755");
 }
 
@@ -219,15 +216,7 @@ function getPnpmDownloadUrl({
   if (!match) throw new Error(`Invalid version: ${version}`);
   const major = parseInt(match[1], 10);
   const baseUrl = `https://github.com/pnpm/pnpm/releases/download/v${version}`;
-  if (major >= 11) {
-    if (platform2 === "darwin" && arch2 === "x64") {
-      throw new Error(
-        "pnpm does not provide x64 macOS binaries for version 11 and above"
-      );
-    }
-    const ext = platform2 == "win32" ? ".zip" : ".tar.gz";
-    return new URL(`${baseUrl}/pnpm-${platform2}-${arch2}${ext}`);
-  } else {
+  if (major < 11) {
     let os;
     switch (platform2) {
       case "linux":
@@ -240,8 +229,22 @@ function getPnpmDownloadUrl({
         os = "win";
         break;
     }
-    const ext = platform2 === "win32" ? ".exe" : "";
-    return new URL(`${baseUrl}/pnpm-${os}-${arch2}${ext}`);
+    return {
+      baseUrl,
+      filename: `pnpm-${os}-${arch2}`,
+      ext: platform2 === "win32" ? ".exe" : ""
+    };
+  } else {
+    if (platform2 === "darwin" && arch2 === "x64") {
+      throw new Error(
+        "pnpm does not provide x64 macOS binaries for version 11 and above"
+      );
+    }
+    return {
+      baseUrl,
+      filename: `pnpm-${platform2}-${arch2}`,
+      ext: platform2 == "win32" ? ".zip" : ".tar.gz"
+    };
   }
 }
 
@@ -258,43 +261,50 @@ async function setupPnpmAction() {
     await access(pnpmHome);
     logInfo(`Use cached pnpm ${version}`);
   } catch {
-    const dlUrl = getPnpmDownloadUrl({ version, platform: platform2, arch: arch2 });
-    const dlFile = dlUrl.pathname.slice(dlUrl.pathname.lastIndexOf("/") + 1);
+    const { baseUrl, filename, ext } = getPnpmDownloadUrl({
+      version,
+      platform: platform2,
+      arch: arch2
+    });
+    const url = `${baseUrl}/${filename}${ext}`;
     logInfo("Create pnpm home");
     await mkdir(pnpmHome, { recursive: true });
-    let dlOut;
-    const dlFileExt = extname(dlFile);
-    switch (dlFileExt) {
-      case ".gz":
-      case ".zip":
-        dlOut = join(pnpmHome, dlFile);
-        break;
-      default:
-        dlOut = join(pnpmHome, `pnpm${dlFileExt}`);
-    }
-    beginLogGroup(`Download pnpm ${version}`);
-    try {
-      const args = ["-fL", "--output", dlOut, dlUrl.href];
-      logCommand("curl", ...args);
-      await exec("curl", args);
-    } finally {
-      endLogGroup();
-    }
-    const dlOutExt = extname(dlOut);
-    switch (dlOutExt) {
-      case ".gz":
-      case ".zip":
-        beginLogGroup("Extract archive");
+    switch (ext) {
+      case "":
+      case ".exe": {
+        const pnpmFile = join(pnpmHome, `pnpm${ext}`);
+        beginLogGroup(`Download pnpm ${version} executable`);
         try {
-          await extractArchive(dlOut, pnpmHome);
+          const args = ["-fL", "--output", pnpmFile, url];
+          logCommand("curl", ...args);
+          await exec("curl", args);
         } finally {
           endLogGroup();
         }
-        logInfo("Remove archive");
-        await rm(dlOut);
+        await makeExecutable(pnpmFile, ext);
         break;
-      default:
-        await makeExecutable(dlOut);
+      }
+      case ".tar.gz":
+      case ".zip": {
+        const archiveFile = join(pnpmHome, filename);
+        beginLogGroup(`Download pnpm ${version} archive`);
+        try {
+          const args = ["-fL", "--output", archiveFile, url];
+          logCommand("curl", ...args);
+          await exec("curl", args);
+        } finally {
+          endLogGroup();
+        }
+        beginLogGroup("Extract pnpm archive");
+        try {
+          await extractArchive(archiveFile, ext, pnpmHome);
+        } finally {
+          endLogGroup();
+        }
+        logInfo("Remove pnpm archive");
+        await rm(archiveFile);
+        break;
+      }
     }
   }
   logInfo("Add pnpm to PATH");

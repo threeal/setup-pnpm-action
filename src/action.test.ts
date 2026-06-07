@@ -86,13 +86,13 @@ describe("setupPnpmAction", () => {
     expect(logs).toStrictEqual([
       "Resolve pnpm version",
       "Create pnpm home",
-      `[begin] Download pnpm ${version}`,
+      `[begin] Download pnpm ${version} archive`,
       "[command]",
       "[end]",
-      "[begin] Extract archive",
+      "[begin] Extract pnpm archive",
       "[command]",
       "[end]",
-      "Remove archive",
+      "Remove pnpm archive",
       "Add pnpm to PATH",
     ]);
 
@@ -117,10 +117,10 @@ describe("setupPnpmAction", () => {
     expect(logs).toStrictEqual([
       "Resolve pnpm version",
       "Create pnpm home",
-      `[begin] Download pnpm ${version}`,
+      `[begin] Download pnpm ${version} executable`,
       "[command]",
       "[end]",
-      "Set file permissions",
+      "Make pnpm executable",
       "Add pnpm to PATH",
     ]);
 
