@@ -17,7 +17,11 @@ import {
 } from "vitest";
 import { setupPnpmAction } from "./action.js";
 import { getVersionInput } from "./input.js";
-import { getPnpmHome, resolvePnpmVersion } from "./pnpm.js";
+import {
+  fecthNpmPackageRegistry,
+  getPnpmHome,
+  resolvePnpmVersion,
+} from "./pnpm.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -58,6 +62,7 @@ beforeAll(async () => {
 afterAll(() => rm(tmpDir, { force: true, recursive: true }));
 
 describe("setupPnpmAction", () => {
+  let latestVersion: string;
   let logs: string[] = [];
 
   const assertPnpmVersion = async (version: string, pnpmHome: string) => {
@@ -69,6 +74,11 @@ describe("setupPnpmAction", () => {
     expect(stdout.trim()).toBe(version);
     expect(stderr.trim()).toBe("");
   };
+
+  beforeAll(async () => {
+    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    latestVersion = resolvePnpmVersion("latest", registry);
+  });
 
   beforeEach(() => {
     logs = [];
@@ -85,14 +95,14 @@ describe("setupPnpmAction", () => {
 
   test("sets up the latest version", { timeout: 60000 }, async () => {
     vi.mocked(getVersionInput).mockResolvedValue("latest");
-    const version = await resolvePnpmVersion("latest");
 
     await setupPnpmAction();
 
     expect(logs).toStrictEqual([
-      "Resolve pnpm version",
+      "Resolve pnpm version from latest",
+      `Use pnpm version ${latestVersion}`,
       "Create pnpm home",
-      `[begin] Download pnpm ${version} archive`,
+      "[begin] Download pnpm archive",
       "[command]",
       "[end]",
       "[begin] Extract pnpm archive",
@@ -102,16 +112,16 @@ describe("setupPnpmAction", () => {
       "Add pnpm to PATH",
     ]);
 
-    const pnpmHome = join(tmpDir, "pnpm", version);
+    const pnpmHome = join(tmpDir, "pnpm", latestVersion);
     expect(vi.mocked(setEnv).mock.calls).toStrictEqual([
       ["PNPM_HOME", pnpmHome],
     ]);
     expect(vi.mocked(addPath).mock.calls).toStrictEqual([[pnpmHome]]);
 
     expect(vi.mocked(setOutput).mock.calls).toStrictEqual([
-      ["version", version],
+      ["version", latestVersion],
     ]);
-    await assertPnpmVersion(version, pnpmHome);
+    await assertPnpmVersion(latestVersion, pnpmHome);
   });
 
   test("sets up a specific version", { timeout: 60000 }, async () => {
@@ -121,9 +131,9 @@ describe("setupPnpmAction", () => {
     await setupPnpmAction();
 
     expect(logs).toStrictEqual([
-      "Resolve pnpm version",
+      `Verify pnpm version ${version}`,
       "Create pnpm home",
-      `[begin] Download pnpm ${version} executable`,
+      "[begin] Download pnpm executable",
       "[command]",
       "[end]",
       "Make pnpm executable",
@@ -144,25 +154,25 @@ describe("setupPnpmAction", () => {
 
   test("sets up from cache", async () => {
     vi.mocked(getVersionInput).mockResolvedValue("latest");
-    const version = await resolvePnpmVersion("latest");
 
     await setupPnpmAction();
 
     expect(logs).toStrictEqual([
-      "Resolve pnpm version",
-      `Use cached pnpm ${version}`,
+      "Resolve pnpm version from latest",
+      `Use pnpm version ${latestVersion}`,
+      "Use cached pnpm",
       "Add pnpm to PATH",
     ]);
 
-    const pnpmHome = join(tmpDir, "pnpm", version);
+    const pnpmHome = join(tmpDir, "pnpm", latestVersion);
     expect(vi.mocked(setEnv).mock.calls).toStrictEqual([
       ["PNPM_HOME", pnpmHome],
     ]);
     expect(vi.mocked(addPath).mock.calls).toStrictEqual([[pnpmHome]]);
 
     expect(vi.mocked(setOutput).mock.calls).toStrictEqual([
-      ["version", version],
+      ["version", latestVersion],
     ]);
-    await assertPnpmVersion(version, pnpmHome);
+    await assertPnpmVersion(latestVersion, pnpmHome);
   });
 });
