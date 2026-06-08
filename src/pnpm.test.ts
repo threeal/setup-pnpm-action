@@ -1,12 +1,17 @@
-import { describe, expect, test } from "vitest";
+import { getRunnerToolCache } from "ghakit/vars";
+import { join } from "node:path";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { Arch, Platform } from "./input.js";
 import {
   getPnpm11DownloadUrl,
   getPnpmDownloadUrl,
+  getPnpmHome,
   getPnpmMajorVersion,
   resolvePnpmVersion,
   resolvePnpmVersionFromResponse,
 } from "./pnpm.js";
+
+vi.mock(import("ghakit/vars"));
 
 describe("resolvePnpmVersionFromResponse", { concurrent: true }, () => {
   const createRes = (data: unknown) =>
@@ -72,6 +77,20 @@ describe("resolvePnpmVersion", { concurrent: true }, () => {
   test("resolves a pnpm version", async () => {
     const version = await resolvePnpmVersion("10.34.0");
     expect(version).toBe("10.34.0");
+  });
+});
+
+describe("getPnpmHome", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  test("returns pnpm home", () => {
+    vi.mocked(getRunnerToolCache).mockReturnValue("/cache");
+    const pnpmHome = getPnpmHome({
+      version: "10.34.0",
+      platform: "linux",
+      arch: "x64",
+    });
+    expect(pnpmHome).toBe(join("/cache", "pnpm", "10.34.0-linux-x64"));
   });
 });
 

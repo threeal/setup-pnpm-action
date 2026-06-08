@@ -1,3 +1,5 @@
+import { getRunnerToolCache } from "ghakit/vars";
+import { join } from "node:path";
 import { Arch, Platform } from "./input.js";
 
 export async function resolvePnpmVersionFromResponse(
@@ -42,6 +44,18 @@ export function getPnpmMajorVersion(version: string): number {
   const match = /^(\d+)/.exec(version);
   if (!match) throw new Error(`Invalid version: ${version}`);
   return parseInt(match[1], 10);
+}
+
+export function getPnpmHome({
+  version,
+  platform,
+  arch,
+}: {
+  version: string;
+  platform: Platform;
+  arch: Arch;
+}): string {
+  return join(getRunnerToolCache(), "pnpm", `${version}-${platform}-${arch}`);
 }
 
 function getOsFromPlatform(platform: Platform): string {

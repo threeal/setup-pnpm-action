@@ -1,6 +1,5 @@
 import { addPath, setEnv, setOutput } from "ghakit/io";
 import { beginLogGroup, endLogGroup, logCommand, logInfo } from "ghakit/log";
-import { getRunnerToolCache } from "ghakit/vars";
 import { execFile } from "node:child_process";
 import { mkdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -18,7 +17,7 @@ import {
 } from "vitest";
 import { setupPnpmAction } from "./action.js";
 import { getVersionInput } from "./input.js";
-import { resolvePnpmVersion } from "./pnpm.js";
+import { getPnpmHome, resolvePnpmVersion } from "./pnpm.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,10 +31,15 @@ vi.mock(import("ghakit/exec"), async (importOriginal) => {
 
 vi.mock(import("ghakit/io"));
 vi.mock(import("ghakit/log"));
-vi.mock(import("ghakit/vars"));
+
 vi.mock(import("./input.js"), async (importOriginal) => ({
   ...(await importOriginal()),
   getVersionInput: vi.fn(),
+}));
+
+vi.mock(import("./pnpm.js"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  getPnpmHome: vi.fn(),
 }));
 
 beforeEach(() => vi.clearAllMocks());
@@ -74,7 +78,9 @@ describe("setupPnpmAction", () => {
       logs.push(`[begin] ${name}`),
     );
     vi.mocked(endLogGroup).mockImplementation(() => logs.push("[end]"));
-    vi.mocked(getRunnerToolCache).mockReturnValue(join(tmpDir, "cache"));
+    vi.mocked(getPnpmHome).mockImplementation(({ version }) =>
+      join(tmpDir, "pnpm", version),
+    );
   });
 
   test("sets up the latest version", { timeout: 60000 }, async () => {
@@ -96,7 +102,7 @@ describe("setupPnpmAction", () => {
       "Add pnpm to PATH",
     ]);
 
-    const pnpmHome = join(tmpDir, "cache", "pnpm", version);
+    const pnpmHome = join(tmpDir, "pnpm", version);
     expect(vi.mocked(setEnv).mock.calls).toStrictEqual([
       ["PNPM_HOME", pnpmHome],
     ]);
@@ -124,7 +130,7 @@ describe("setupPnpmAction", () => {
       "Add pnpm to PATH",
     ]);
 
-    const pnpmHome = join(tmpDir, "cache", "pnpm", version);
+    const pnpmHome = join(tmpDir, "pnpm", version);
     expect(vi.mocked(setEnv).mock.calls).toStrictEqual([
       ["PNPM_HOME", pnpmHome],
     ]);
@@ -148,7 +154,7 @@ describe("setupPnpmAction", () => {
       "Add pnpm to PATH",
     ]);
 
-    const pnpmHome = join(tmpDir, "cache", "pnpm", version);
+    const pnpmHome = join(tmpDir, "pnpm", version);
     expect(vi.mocked(setEnv).mock.calls).toStrictEqual([
       ["PNPM_HOME", pnpmHome],
     ]);

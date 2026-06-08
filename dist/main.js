@@ -183,8 +183,6 @@ async function makeExecutable(file, ext) {
   logInfo("Make pnpm executable");
   await chmod(file, "755");
 }
-
-// src/pnpm.ts
 async function resolvePnpmVersionFromResponse(version, res) {
   if (!res.ok) {
     throw new Error(`Failed to fetch version registry: ${res.statusText}`);
@@ -211,6 +209,13 @@ function getPnpmMajorVersion(version) {
   const match = /^(\d+)/.exec(version);
   if (!match) throw new Error(`Invalid version: ${version}`);
   return parseInt(match[1], 10);
+}
+function getPnpmHome({
+  version,
+  platform: platform2,
+  arch: arch2
+}) {
+  return join(getRunnerToolCache(), "pnpm", `${version}-${platform2}-${arch2}`);
 }
 function getOsFromPlatform(platform2) {
   switch (platform2) {
@@ -258,7 +263,7 @@ async function setupPnpmAction() {
   logInfo("Resolve pnpm version");
   const version = await resolvePnpmVersion(versionInput);
   const majorVersion = getPnpmMajorVersion(version);
-  const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
+  const pnpmHome = getPnpmHome({ version, platform: platform2, arch: arch2 });
   await setEnv("PNPM_HOME", pnpmHome);
   try {
     await access(pnpmHome);
