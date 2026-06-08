@@ -183,27 +183,50 @@ async function makeExecutable(file, ext) {
   logInfo("Make pnpm executable");
   await chmod(file, "755");
 }
-async function resolvePnpmVersionFromResponse(version, res) {
+async function fecthNpmPackageRegistry(pkg) {
+  const res = await fetch(`https://registry.npmjs.org/${pkg}`);
   if (!res.ok) {
-    throw new Error(`Failed to fetch version registry: ${res.statusText}`);
+    throw new Error(
+      `Failed to fetch ${pkg} from npm registry: ${res.statusText}`
+    );
   }
-  const data = await res.json();
-  if (typeof data === "object" && data !== null) {
-    if ("dist-tags" in data && typeof data["dist-tags"] === "object" && data["dist-tags"] !== null) {
-      const distTags = data["dist-tags"];
-      if (version in distTags && typeof distTags[version] === "string") {
-        return distTags[version];
-      }
-    }
-    if ("versions" in data && typeof data.versions === "object" && data.versions !== null) {
-      if (version in data.versions) return version;
-    }
-  }
-  throw new Error(`Unknown version: ${version}`);
+  return res.json();
 }
-async function resolvePnpmVersion(version) {
-  const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
-  return resolvePnpmVersionFromResponse(version, res);
+function resolvePnpmVersion(tag, registry) {
+  if (typeof registry !== "object" || registry === null) {
+    throw new Error("Registry must be an object");
+  }
+  if (!("dist-tags" in registry)) {
+    throw new Error("Missing `dist-tags` field in registry");
+  }
+  const distTags = registry["dist-tags"];
+  if (typeof distTags !== "object" || distTags === null) {
+    throw new Error("`dist-tags` must be an object");
+  }
+  const entry = Object.entries(distTags).find((entry2) => entry2[0] === tag);
+  if (!entry) {
+    throw new Error(`Unknown tag: ${tag}`);
+  }
+  if (typeof entry[1] !== "string") {
+    throw new Error(`Tag ${tag} did not resolve to a string`);
+  }
+  return entry[1];
+}
+function verifyPnpmVersion(tag, registry) {
+  if (typeof registry !== "object" || registry === null) {
+    throw new Error("Registry must be an object");
+  }
+  if (!("versions" in registry)) {
+    throw new Error("Missing `versions` field in registry");
+  }
+  const versions = registry.versions;
+  if (typeof versions !== "object" || versions === null) {
+    throw new Error("`versions` must be an object");
+  }
+  const entry = Object.entries(versions).find((entry2) => entry2[0] === tag);
+  if (!entry) {
+    throw new Error(`Unknown version: ${tag}`);
+  }
 }
 function getPnpmMajorVersion(version) {
   const match = /^(\d+)/.exec(version);
@@ -259,15 +282,23 @@ function getPnpm11DownloadUrl({
 async function setupPnpmAction() {
   const platform2 = getPlatform();
   const arch2 = getArch();
-  const versionInput = await getVersionInput();
-  logInfo("Resolve pnpm version");
-  const version = await resolvePnpmVersion(versionInput);
+  let version = await getVersionInput();
+  if (/^\d+\.\d+\.\d+/.test(version)) {
+    logInfo(`Verify pnpm version ${version}`);
+    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    verifyPnpmVersion(version, registry);
+  } else {
+    logInfo(`Resolve pnpm version from ${version}`);
+    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    version = resolvePnpmVersion(version, registry);
+    logInfo(`Use pnpm version ${version}`);
+  }
   const majorVersion = getPnpmMajorVersion(version);
   const pnpmHome = getPnpmHome({ version, platform: platform2, arch: arch2 });
   await setEnv("PNPM_HOME", pnpmHome);
   try {
     await access(pnpmHome);
-    logInfo(`Use cached pnpm ${version}`);
+    logInfo("Use cached pnpm");
   } catch {
     if (majorVersion < 11) {
       const { baseUrl, filename, ext } = getPnpmDownloadUrl({
@@ -278,7 +309,7 @@ async function setupPnpmAction() {
       const url = `${baseUrl}/${filename}${ext}`;
       logInfo("Create pnpm home");
       await mkdir(pnpmHome, { recursive: true });
-      beginLogGroup(`Download pnpm ${version} executable`);
+      beginLogGroup("Download pnpm executable");
       const execFile = join(pnpmHome, `pnpm${ext}`);
       try {
         const args = ["-fL", "--output", execFile, url];
@@ -297,7 +328,7 @@ async function setupPnpmAction() {
       const url = `${baseUrl}/${filename}${ext}`;
       logInfo("Create pnpm home");
       await mkdir(pnpmHome, { recursive: true });
-      beginLogGroup(`Download pnpm ${version} archive`);
+      beginLogGroup("Download pnpm archive");
       const archiveFile = join(pnpmHome, filename);
       try {
         const args = ["-fL", "--output", archiveFile, url];

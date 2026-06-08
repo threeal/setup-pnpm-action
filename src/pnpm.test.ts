@@ -3,80 +3,98 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { Arch, Platform } from "./input.js";
 import {
+  fecthNpmPackageRegistry,
   getPnpm11DownloadUrl,
   getPnpmDownloadUrl,
   getPnpmHome,
   getPnpmMajorVersion,
   resolvePnpmVersion,
-  resolvePnpmVersionFromResponse,
+  verifyPnpmVersion,
 } from "./pnpm.js";
 
 vi.mock(import("ghakit/vars"));
 
-describe("resolvePnpmVersionFromResponse", { concurrent: true }, () => {
-  const createRes = (data: unknown) =>
-    new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+describe("fecthNpmPackageRegistry", { concurrent: true }, () => {
+  test("returns package registry", async () => {
+    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    expect(registry).not.toBeUndefined();
+  });
 
-  test("throws on HTTP error", async () => {
-    const res = new Response(null, {
-      status: 500,
-      statusText: "Internal Server Error",
-    });
-    await expect(
-      resolvePnpmVersionFromResponse("10.34.0", res),
-    ).rejects.toThrow(
-      "Failed to fetch version registry: Internal Server Error",
+  test("throws for not found package", async () => {
+    await expect(fecthNpmPackageRegistry("@pnpm/exeee")).rejects.toThrow(
+      "Failed to fetch @pnpm/exeee from npm registry: Not Found",
     );
-  });
-
-  test("resolves a pnpm tag", async () => {
-    const res = createRes({ "dist-tags": { latest: "11.5.0" } });
-    const version = await resolvePnpmVersionFromResponse("latest", res);
-    expect(version).toBe("11.5.0");
-  });
-
-  test("resolves a pnpm version", async () => {
-    const res = createRes({ versions: { "10.34.0": {} } });
-    const version = await resolvePnpmVersionFromResponse("10.34.0", res);
-    expect(version).toBe("10.34.0");
-  });
-
-  test("throws when response body is not an object", async () => {
-    const res = createRes("10.34.0");
-    await expect(
-      resolvePnpmVersionFromResponse("10.34.0", res),
-    ).rejects.toThrow("Unknown version: 10.34.0");
-  });
-
-  test("throws when response has no version fields", async () => {
-    const res = createRes({});
-    await expect(
-      resolvePnpmVersionFromResponse("10.34.0", res),
-    ).rejects.toThrow("Unknown version: 10.34.0");
-  });
-
-  test("throws when version is not in registry", async () => {
-    const res = createRes({ versions: { "11.5.0": {} } });
-    await expect(
-      resolvePnpmVersionFromResponse("10.34.0", res),
-    ).rejects.toThrow("Unknown version: 10.34.0");
   });
 });
 
 describe("resolvePnpmVersion", { concurrent: true }, () => {
-  test("resolves a pnpm tag", async () => {
-    const version = await resolvePnpmVersion("latest");
-    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+  test("resolves a pnpm tag", () => {
+    const registry = { "dist-tags": { latest: "11.5.0" } };
+    const version = resolvePnpmVersion("latest", registry);
+    expect(version).toBe("11.5.0");
   });
 
-  test("resolves a pnpm version", async () => {
-    const version = await resolvePnpmVersion("10.34.0");
-    expect(version).toBe("10.34.0");
+  test("throws when registry is not an object", () => {
+    expect(() => resolvePnpmVersion("latest", "")).toThrow(
+      "Registry must be an object",
+    );
+  });
+
+  test("throws when `dist-tags` field is missing", () => {
+    expect(() => resolvePnpmVersion("latest", {})).toThrow(
+      "Missing `dist-tags` field in registry",
+    );
+  });
+
+  test("throws when `dist-tags` field is not an object", () => {
+    expect(() => resolvePnpmVersion("latest", { "dist-tags": "" })).toThrow(
+      "`dist-tags` must be an object",
+    );
+  });
+
+  test("throws when tag not found", () => {
+    expect(() =>
+      resolvePnpmVersion("latest", { "dist-tags": { current: "10.34.0" } }),
+    ).toThrow("Unknown tag: latest");
+  });
+
+  test("throws when resolved tag does not contain a string", () => {
+    expect(() =>
+      resolvePnpmVersion("latest", { "dist-tags": { latest: {} } }),
+    ).toThrow("Tag latest did not resolve to a string");
+  });
+});
+
+describe("verifyPnpmVersion", { concurrent: true }, () => {
+  test("verify a pnpm verion", () => {
+    const registry = { versions: { "10.34.0": {} } };
+    expect(() => {
+      verifyPnpmVersion("10.34.0", registry);
+    }).not.toThrow();
+  });
+
+  test("throws when registry is not an object", () => {
+    expect(() => {
+      verifyPnpmVersion("10.34.0", "");
+    }).toThrow("Registry must be an object");
+  });
+
+  test("throws when `versions` field is missing", () => {
+    expect(() => {
+      verifyPnpmVersion("10.34.0", {});
+    }).toThrow("Missing `versions` field in registry");
+  });
+
+  test("throws when versions field is not an object", () => {
+    expect(() => {
+      verifyPnpmVersion("10.34.0", { versions: "" });
+    }).toThrow("`versions` must be an object");
+  });
+
+  test("throws when version not found", () => {
+    expect(() => {
+      verifyPnpmVersion("10.34.0", { versions: { "11.5.0": {} } });
+    }).toThrow("Unknown version: 10.34.0");
   });
 });
 

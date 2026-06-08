@@ -2,42 +2,60 @@ import { getRunnerToolCache } from "ghakit/vars";
 import { join } from "node:path";
 import { Arch, Platform } from "./input.js";
 
-export async function resolvePnpmVersionFromResponse(
-  version: string,
-  res: Response,
-): Promise<string> {
+export async function fecthNpmPackageRegistry(pkg: string): Promise<unknown> {
+  const res = await fetch(`https://registry.npmjs.org/${pkg}`);
   if (!res.ok) {
-    throw new Error(`Failed to fetch version registry: ${res.statusText}`);
+    throw new Error(
+      `Failed to fetch ${pkg} from npm registry: ${res.statusText}`,
+    );
   }
-
-  const data = await res.json();
-  if (typeof data === "object" && data !== null) {
-    if (
-      "dist-tags" in data &&
-      typeof data["dist-tags"] === "object" &&
-      data["dist-tags"] !== null
-    ) {
-      const distTags = data["dist-tags"] as Record<string, unknown>;
-      if (version in distTags && typeof distTags[version] === "string") {
-        return distTags[version];
-      }
-    }
-
-    if (
-      "versions" in data &&
-      typeof data.versions === "object" &&
-      data.versions !== null
-    ) {
-      if (version in data.versions) return version;
-    }
-  }
-
-  throw new Error(`Unknown version: ${version}`);
+  return res.json();
 }
 
-export async function resolvePnpmVersion(version: string): Promise<string> {
-  const res = await fetch("https://registry.npmjs.org/@pnpm/exe");
-  return resolvePnpmVersionFromResponse(version, res);
+export function resolvePnpmVersion(tag: string, registry: unknown): string {
+  if (typeof registry !== "object" || registry === null) {
+    throw new Error("Registry must be an object");
+  }
+
+  if (!("dist-tags" in registry)) {
+    throw new Error("Missing `dist-tags` field in registry");
+  }
+
+  const distTags = registry["dist-tags"];
+  if (typeof distTags !== "object" || distTags === null) {
+    throw new Error("`dist-tags` must be an object");
+  }
+
+  const entry = Object.entries(distTags).find((entry) => entry[0] === tag);
+  if (!entry) {
+    throw new Error(`Unknown tag: ${tag}`);
+  }
+
+  if (typeof entry[1] !== "string") {
+    throw new Error(`Tag ${tag} did not resolve to a string`);
+  }
+
+  return entry[1];
+}
+
+export function verifyPnpmVersion(tag: string, registry: unknown): void {
+  if (typeof registry !== "object" || registry === null) {
+    throw new Error("Registry must be an object");
+  }
+
+  if (!("versions" in registry)) {
+    throw new Error("Missing `versions` field in registry");
+  }
+
+  const versions = registry.versions;
+  if (typeof versions !== "object" || versions === null) {
+    throw new Error("`versions` must be an object");
+  }
+
+  const entry = Object.entries(versions).find((entry) => entry[0] === tag);
+  if (!entry) {
+    throw new Error(`Unknown version: ${tag}`);
+  }
 }
 
 export function getPnpmMajorVersion(version: string): number {
