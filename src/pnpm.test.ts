@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { Arch, Platform } from "./input.js";
 import {
+  getPnpm11DownloadUrl,
   getPnpmDownloadUrl,
+  getPnpmMajorVersion,
   resolvePnpmVersion,
   resolvePnpmVersionFromResponse,
 } from "./pnpm.js";
@@ -73,21 +75,28 @@ describe("resolvePnpmVersion", { concurrent: true }, () => {
   });
 });
 
-describe("getPnpmDownloadUrl", { concurrent: true }, () => {
-  const combinations = ["10.34.0", "11.5.0"]
-    .flatMap((version) =>
-      (["linux", "darwin", "win32"] satisfies Platform[]).flatMap((platform) =>
-        (["x64", "arm64"] satisfies Arch[]).map((arch) => ({
-          version,
-          platform,
-          arch,
-        })),
-      ),
-    )
-    .filter(
-      ({ version, platform, arch }) =>
-        version !== "11.5.0" || platform !== "darwin" || arch !== "x64",
+describe("getPnpmMajorVersion", () => {
+  test("returns major version", () => {
+    expect(getPnpmMajorVersion("10.34.0")).toBe(10);
+  });
+
+  test("throws when version is invalid", () => {
+    expect(() => getPnpmMajorVersion("latest")).toThrow(
+      "Invalid version: latest",
     );
+  });
+});
+
+describe("getPnpmDownloadUrl", { concurrent: true }, () => {
+  const combinations = ["9.15.0", "10.34.0"].flatMap((version) =>
+    (["linux", "darwin", "win32"] satisfies Platform[]).flatMap((platform) =>
+      (["x64", "arm64"] satisfies Arch[]).map((arch) => ({
+        version,
+        platform,
+        arch,
+      })),
+    ),
+  );
 
   test("returns unique URLs for each combination", () => {
     const urls = combinations.map(({ version, platform, arch }) => {
@@ -115,16 +124,51 @@ describe("getPnpmDownloadUrl", { concurrent: true }, () => {
       expect(res.ok).toBe(true);
     },
   );
+});
 
-  test("throws when version is invalid", () => {
-    expect(() =>
-      getPnpmDownloadUrl({ version: "latest", platform: "linux", arch: "x64" }),
-    ).toThrow("Invalid version: latest");
+describe("getPnpm11DownloadUrl", { concurrent: true }, () => {
+  const combinations = ["11.4.0", "11.5.0"]
+    .flatMap((version) =>
+      (["linux", "darwin", "win32"] satisfies Platform[]).flatMap((platform) =>
+        (["x64", "arm64"] satisfies Arch[]).map((arch) => ({
+          version,
+          platform,
+          arch,
+        })),
+      ),
+    )
+    .filter(({ platform, arch }) => platform !== "darwin" || arch !== "x64");
+
+  test("returns unique URLs for each combination", () => {
+    const urls = combinations.map(({ version, platform, arch }) => {
+      const { baseUrl, filename, ext } = getPnpm11DownloadUrl({
+        version,
+        platform,
+        arch,
+      });
+      return `${baseUrl}/${filename}${ext}`;
+    });
+    expect(new Set(urls).size).toBe(combinations.length);
   });
+
+  test.each(combinations)(
+    "returns accessible URL for $version/$platform/$arch",
+    { timeout: 30000 },
+    async ({ version, platform, arch }) => {
+      const { baseUrl, filename, ext } = getPnpm11DownloadUrl({
+        version,
+        platform,
+        arch,
+      });
+      const url = `${baseUrl}/${filename}${ext}`;
+      const res = await fetch(url, { method: "HEAD" });
+      expect(res.ok).toBe(true);
+    },
+  );
 
   test("throws for x64 macOS on version 11 and above", () => {
     expect(() =>
-      getPnpmDownloadUrl({
+      getPnpm11DownloadUrl({
         version: "11.5.0",
         platform: "darwin",
         arch: "x64",

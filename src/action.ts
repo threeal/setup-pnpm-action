@@ -6,7 +6,12 @@ import { access, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { getArch, getPlatform, getVersionInput } from "./input.js";
 import { extractArchive, makeExecutable } from "./install.js";
-import { getPnpmDownloadUrl, resolvePnpmVersion } from "./pnpm.js";
+import {
+  getPnpm11DownloadUrl,
+  getPnpmDownloadUrl,
+  getPnpmMajorVersion,
+  resolvePnpmVersion,
+} from "./pnpm.js";
 
 export async function setupPnpmAction() {
   const platform = getPlatform();
@@ -16,6 +21,7 @@ export async function setupPnpmAction() {
 
   logInfo("Resolve pnpm version");
   const version = await resolvePnpmVersion(versionInput);
+  const majorVersion = getPnpmMajorVersion(version);
 
   const pnpmHome = join(getRunnerToolCache(), "pnpm", version);
   await setEnv("PNPM_HOME", pnpmHome);
@@ -24,58 +30,58 @@ export async function setupPnpmAction() {
     await access(pnpmHome);
     logInfo(`Use cached pnpm ${version}`);
   } catch {
-    const { baseUrl, filename, ext } = getPnpmDownloadUrl({
-      version,
-      platform,
-      arch,
-    });
-    const url = `${baseUrl}/${filename}${ext}`;
+    if (majorVersion < 11) {
+      const { baseUrl, filename, ext } = getPnpmDownloadUrl({
+        version,
+        platform,
+        arch,
+      });
+      const url = `${baseUrl}/${filename}${ext}`;
 
-    logInfo("Create pnpm home");
-    await mkdir(pnpmHome, { recursive: true });
+      logInfo("Create pnpm home");
+      await mkdir(pnpmHome, { recursive: true });
 
-    switch (ext) {
-      case "":
-      case ".exe": {
-        const pnpmFile = join(pnpmHome, `pnpm${ext}`);
-
-        beginLogGroup(`Download pnpm ${version} executable`);
-        try {
-          const args: string[] = ["-fL", "--output", pnpmFile, url];
-          logCommand("curl", ...args);
-          await exec("curl", args);
-        } finally {
-          endLogGroup();
-        }
-
-        await makeExecutable(pnpmFile, ext);
-        break;
+      beginLogGroup(`Download pnpm ${version} executable`);
+      const execFile = join(pnpmHome, `pnpm${ext}`);
+      try {
+        const args: string[] = ["-fL", "--output", execFile, url];
+        logCommand("curl", ...args);
+        await exec("curl", args);
+      } finally {
+        endLogGroup();
       }
 
-      case ".tar.gz":
-      case ".zip": {
-        const archiveFile = join(pnpmHome, filename);
+      await makeExecutable(execFile, ext);
+    } else {
+      const { baseUrl, filename, ext } = getPnpm11DownloadUrl({
+        version,
+        platform,
+        arch,
+      });
+      const url = `${baseUrl}/${filename}${ext}`;
 
-        beginLogGroup(`Download pnpm ${version} archive`);
-        try {
-          const args: string[] = ["-fL", "--output", archiveFile, url];
-          logCommand("curl", ...args);
-          await exec("curl", args);
-        } finally {
-          endLogGroup();
-        }
+      logInfo("Create pnpm home");
+      await mkdir(pnpmHome, { recursive: true });
 
-        beginLogGroup("Extract pnpm archive");
-        try {
-          await extractArchive(archiveFile, ext, pnpmHome);
-        } finally {
-          endLogGroup();
-        }
-
-        logInfo("Remove pnpm archive");
-        await rm(archiveFile);
-        break;
+      beginLogGroup(`Download pnpm ${version} archive`);
+      const archiveFile = join(pnpmHome, filename);
+      try {
+        const args: string[] = ["-fL", "--output", archiveFile, url];
+        logCommand("curl", ...args);
+        await exec("curl", args);
+      } finally {
+        endLogGroup();
       }
+
+      beginLogGroup("Extract pnpm archive");
+      try {
+        await extractArchive(archiveFile, ext, pnpmHome);
+      } finally {
+        endLogGroup();
+      }
+
+      logInfo("Remove pnpm archive");
+      await rm(archiveFile);
     }
   }
 
