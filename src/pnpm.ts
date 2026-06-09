@@ -2,7 +2,7 @@ import { getRunnerToolCache } from "ghakit/vars";
 import { join } from "node:path";
 import { Arch, Platform } from "./input.js";
 
-export async function fecthNpmPackageRegistry(pkg: string): Promise<unknown> {
+export async function fetchNpmPackageRegistry(pkg: string): Promise<unknown> {
   const res = await fetch(`https://registry.npmjs.org/${pkg}`);
   if (!res.ok) {
     throw new Error(
@@ -128,6 +128,6 @@ export function getPnpm11DownloadUrl({
   return {
     baseUrl: `https://github.com/pnpm/pnpm/releases/download/v${version}`,
     filename: `pnpm-${platform}-${arch}`,
-    ext: platform == "win32" ? ".zip" : ".tar.gz",
+    ext: platform === "win32" ? ".zip" : ".tar.gz",
   };
 }

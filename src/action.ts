@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { getArch, getPlatform, getVersionInput } from "./input.js";
 import { extractArchive, makeExecutable } from "./install.js";
 import {
-  fecthNpmPackageRegistry,
+  fetchNpmPackageRegistry,
   getPnpm11DownloadUrl,
   getPnpmDownloadUrl,
   getPnpmHome,
@@ -22,11 +22,11 @@ export async function setupPnpmAction() {
   let version = await getVersionInput();
   if (/^\d+\.\d+\.\d+/.test(version)) {
     logInfo(`Verify pnpm version ${version}`);
-    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
     verifyPnpmVersion(version, registry);
   } else {
     logInfo(`Resolve pnpm version from ${version}`);
-    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
     version = resolvePnpmVersion(version, registry);
     logInfo(`Use pnpm version ${version}`);
   }

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { Arch, Platform } from "./input.js";
 import {
-  fecthNpmPackageRegistry,
+  fetchNpmPackageRegistry,
   getPnpm11DownloadUrl,
   getPnpmDownloadUrl,
   getPnpmHome,
@@ -14,14 +14,14 @@ import {
 
 vi.mock(import("ghakit/vars"));
 
-describe("fecthNpmPackageRegistry", { concurrent: true }, () => {
+describe("fetchNpmPackageRegistry", { concurrent: true }, () => {
   test("returns package registry", async () => {
-    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
     expect(registry).not.toBeUndefined();
   });
 
   test("throws for not found package", async () => {
-    await expect(fecthNpmPackageRegistry("@pnpm/exeee")).rejects.toThrow(
+    await expect(fetchNpmPackageRegistry("@pnpm/exeee")).rejects.toThrow(
       "Failed to fetch @pnpm/exeee from npm registry: Not Found",
     );
   });
@@ -66,7 +66,7 @@ describe("resolvePnpmVersion", { concurrent: true }, () => {
 });
 
 describe("verifyPnpmVersion", { concurrent: true }, () => {
-  test("verify a pnpm verion", () => {
+  test("verify a pnpm version", () => {
     const registry = { versions: { "10.34.0": {} } };
     expect(() => {
       verifyPnpmVersion("10.34.0", registry);
