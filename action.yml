@@ -7,10 +7,8 @@ branding:
 inputs:
   version:
     description: The version or tag of pnpm to install.
-    default: ""
   version-file:
     description: A file specifying the version of pnpm to install. Supports package.json with a packageManager field.
-    default: ""
 outputs:
   version:
     description: The version of pnpm that was installed.
