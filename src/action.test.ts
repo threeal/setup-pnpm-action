@@ -18,7 +18,7 @@ import {
 import { setupPnpmAction } from "./action.js";
 import { getVersionInput } from "./input.js";
 import {
-  fecthNpmPackageRegistry,
+  fetchNpmPackageRegistry,
   getPnpmHome,
   resolvePnpmVersion,
 } from "./pnpm.js";
@@ -76,7 +76,7 @@ describe("setupPnpmAction", () => {
   };
 
   beforeAll(async () => {
-    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
     latestVersion = resolvePnpmVersion("latest", registry);
   });
 

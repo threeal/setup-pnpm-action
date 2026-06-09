@@ -183,7 +183,7 @@ async function makeExecutable(file, ext) {
   logInfo("Make pnpm executable");
   await chmod(file, "755");
 }
-async function fecthNpmPackageRegistry(pkg) {
+async function fetchNpmPackageRegistry(pkg) {
   const res = await fetch(`https://registry.npmjs.org/${pkg}`);
   if (!res.ok) {
     throw new Error(
@@ -274,7 +274,7 @@ function getPnpm11DownloadUrl({
   return {
     baseUrl: `https://github.com/pnpm/pnpm/releases/download/v${version}`,
     filename: `pnpm-${platform2}-${arch2}`,
-    ext: platform2 == "win32" ? ".zip" : ".tar.gz"
+    ext: platform2 === "win32" ? ".zip" : ".tar.gz"
   };
 }
 
@@ -285,11 +285,11 @@ async function setupPnpmAction() {
   let version = await getVersionInput();
   if (/^\d+\.\d+\.\d+/.test(version)) {
     logInfo(`Verify pnpm version ${version}`);
-    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
     verifyPnpmVersion(version, registry);
   } else {
     logInfo(`Resolve pnpm version from ${version}`);
-    const registry = await fecthNpmPackageRegistry("@pnpm/exe");
+    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
     version = resolvePnpmVersion(version, registry);
     logInfo(`Use pnpm version ${version}`);
   }
