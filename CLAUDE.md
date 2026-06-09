@@ -10,42 +10,42 @@ This is a JavaScript GitHub Action that downloads and sets up a standalone pnpm 
 
 ### Source Files
 
-- **`src/main.ts`** — Entry point that calls the action function and handles error logging and exit codes.
-- **`src/action.ts`** — The action implementation; verifies the pnpm version against the npm registry if the input is an exact version (`x.y.z`), or resolves a tag otherwise; sets `PNPM_HOME` via `getPnpmHome({ version, platform, arch })`, downloads the binary into the runner tool cache if not already cached (branching on major version: pnpm <11 downloads an executable directly; pnpm >=11 downloads and extracts an archive), adds it to `PATH`, and sets the `version` output.
-- **`src/input.ts`** — Reads the `version` and `version-file` action inputs and resolves them to a version string; parses `package.json` to extract the version from the `packageManager` field when `version-file` is used or when neither input is set and a `package.json` exists in the current directory. Also exports `getPlatform()` and `getArch()`, which validate and return the current `Platform` (`linux | darwin | win32`) and `Arch` (`x64 | arm64`) from `node:os`, throwing on unsupported values.
-- **`src/pnpm.ts`** — pnpm-specific utilities: `fecthNpmPackageRegistry(pkg)` fetches the npm registry JSON for a package; `resolvePnpmVersion(tag, registry)` resolves a dist-tag (e.g. `latest`) to a version string; `verifyPnpmVersion(version, registry)` verifies a version exists in the registry; `getPnpmMajorVersion(version)` extracts the major version number; `getPnpmHome({ version, platform, arch })` returns the pnpm home path as `getRunnerToolCache()/pnpm/<version>-<platform>-<arch>`; `getPnpmDownloadUrl` builds the download URL for pnpm <11 (returns an executable — `""` or `".exe"` extension); `getPnpm11DownloadUrl` builds the download URL for pnpm >=11 (returns an archive — `".tar.gz"` or `".zip"` extension; throws for x64 macOS).
-- **`src/install.ts`** — `extractArchive(archiveFile, outputDir)` extracts `.tar.gz` archives via `tar` and `.zip` archives via `unzip`; `makeExecutable(file)` sets executable permissions on the file, or skips if the file has a `.exe` extension.
-- **`src/action.test.ts`** — Integration tests for the action with a mocked GitHub Actions environment and a real binary download.
-- **`src/input.test.ts`** — Tests for `getPlatform`, `getArch`, `extractVersionFromPackageJson`, and `getVersionInput` in `input.ts`.
-- **`src/pnpm.test.ts`** — Tests for `fecthNpmPackageRegistry`, `resolvePnpmVersion`, `verifyPnpmVersion`, `getPnpmHome`, `getPnpmMajorVersion`, `getPnpmDownloadUrl` (pnpm <11), and `getPnpm11DownloadUrl` (pnpm >=11), including live network calls to verify URL accessibility.
-- **`src/install.test.ts`** — Tests for `extractArchive` and `makeExecutable` in `install.ts`.
+- **`src/main.ts`** — Entry point; calls the action and handles errors.
+- **`src/action.ts`** — Action implementation; resolves/verifies the pnpm version, downloads the binary, and adds it to `PATH`.
+- **`src/input.ts`** — Reads action inputs (`version`, `version-file`) and resolves them to a version string; exports `getPlatform()` and `getArch()`.
+- **`src/pnpm.ts`** — pnpm-specific utilities: npm registry fetch, version resolution/verification, home path, and download URL construction.
+- **`src/install.ts`** — Archive extraction (`.tar.gz`, `.zip`) and setting executable permissions.
+- **`src/action.test.ts`** — Integration tests with a mocked GitHub Actions environment and real binary download.
+- **`src/input.test.ts`** — Tests for `input.ts`.
+- **`src/pnpm.test.ts`** — Tests for `pnpm.ts`, including live network calls.
+- **`src/install.test.ts`** — Tests for `install.ts`.
 
 ### TypeScript Configuration
 
-- **`tsconfig.json`** — Type-check config with `noEmit: true`; used by `pnpm tsc`. Extends `@tsconfig/node24`, which sets `module: nodenext` and `moduleResolution: node16`. This requires import paths to use `.js` extensions even when importing `.ts` source files.
+- **`tsconfig.json`** — Type-check only config (noEmit); requires `.js` extensions on imports even for `.ts` source files.
 
 ### Build Configuration
 
-- **`tsup.config.ts`** — Configures tsup to bundle `src/main.ts` as ESM with tree-shaking enabled.
+- **`tsup.config.ts`** — Bundles `src/main.ts` as a single ESM file with tree-shaking.
 
 ### Build Output
 
-- **`dist/main.js`** — Single bundled ESM file. Must be committed — CI verifies there is no git diff after building.
+- **`dist/main.js`** — Single bundled ESM file; must be committed (CI checks for no diff after build).
 
 ### Action Definition
 
-- **`action.yml`** — Declares two optional inputs (`version` and `version-file`), one output (`version` — the installed version), branding, and the Node.js runtime pointing to `dist/main.js`.
+- **`action.yml`** — Declares inputs (`version`, `version-file`), output (`version`), and the Node.js runtime pointing to `dist/main.js`.
 
 ## Tooling
 
-- **pnpm** is the package manager. `packageManager` in `package.json` pins the pnpm version; `devEngines.runtime` selects the Node.js version; `engines.node` asserts Node >=24.
-- **tsup** is the bundler. All packages — including runtime dependencies like `ghakit` — belong in `devDependencies`; tsup bundles everything so there are no runtime `dependencies` needed.
-- **ghakit** handles all GitHub Actions-specific concerns: reading inputs, writing outputs, logging, and spawning processes.
-- **ESLint** uses flat config (`eslint.config.ts`) with `@eslint/js` recommended rules and `typescript-eslint` strict + stylistic type-checked rules.
-- **Prettier** uses `prettier-plugin-organize-imports` — import order is auto-managed.
-- **Lefthook** manages Git hooks via `lefthook.yaml`. It is a standalone binary, not a pnpm package.
-- **Vitest** uses `vitest.config.ts` with coverage always enabled, text reporter, and 100% thresholds across all metrics.
-- **Dependabot** keeps GitHub Actions and npm dependencies up to date automatically via `.github/dependabot.yaml`.
+- **pnpm** — Package manager; version pinned via `packageManager` in `package.json`; requires Node >=24.
+- **tsup** — Bundler; all deps (including runtime ones) go in `devDependencies` — no runtime `dependencies` needed.
+- **ghakit** — GitHub Actions toolkit for inputs, outputs, logging, and spawning processes.
+- **ESLint** — Linter with flat config (`eslint.config.ts`); uses `typescript-eslint` strict + stylistic rules.
+- **Prettier** — Formatter; `prettier-plugin-organize-imports` manages import order automatically.
+- **Lefthook** — Git hook manager via `lefthook.yaml`; a standalone binary, not a pnpm package.
+- **Vitest** — Test runner; coverage always enabled at 100% thresholds across all metrics.
+- **Dependabot** — Keeps GitHub Actions and npm dependencies up to date via `.github/dependabot.yaml`.
 
 ## Testing
 
@@ -73,7 +73,7 @@ Individual commands (manual fallback if needed): `pnpm prettier --write .`, `pnp
 
 CI has two jobs:
 
-- **Check** — runs `lefthook run pre-commit --all-files` (install, format, lint, type-check, build), then runs the full test suite with `pnpm vitest run`.
-- **Test** — checks out the action itself and runs it on `ubuntu-24.04`, `ubuntu-24.04-arm`, `windows-2025`, `windows-11-arm`, `macos-15`, and `macos-15-intel` to verify the actual action behavior end-to-end across all supported OS and architecture combinations.
+- **Check** — runs `lefthook run pre-commit --all-files`, then `pnpm vitest run`.
+- **Test** — runs the action end-to-end on `ubuntu-24.04`, `ubuntu-24.04-arm`, `windows-2025`, `windows-11-arm`, `macos-15`, and `macos-15-intel`.
 
 See `.github/workflows/ci.yaml` for full details.
