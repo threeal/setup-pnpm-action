@@ -131,7 +131,8 @@ describe("setupPnpmAction", () => {
     await setupPnpmAction();
 
     expect(logs).toStrictEqual([
-      `Verify pnpm version ${version}`,
+      `Resolve pnpm version from ${version}`,
+      `Use pnpm version ${version}`,
       "Create pnpm home",
       "[begin] Download pnpm executable",
       "[command]",

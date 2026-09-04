@@ -1,5 +1,6 @@
 import { getRunnerToolCache } from "ghakit/vars";
 import { join } from "node:path";
+import { maxSatisfying, validRange } from "semver";
 import { Arch, Platform } from "./input.js";
 
 export async function fetchNpmPackageRegistry(pkg: string): Promise<unknown> {
@@ -12,7 +13,7 @@ export async function fetchNpmPackageRegistry(pkg: string): Promise<unknown> {
   return res.json();
 }
 
-export function resolvePnpmVersion(tag: string, registry: unknown): string {
+function getRegistryDistTags(registry: unknown): Record<string, unknown> {
   if (typeof registry !== "object" || registry === null) {
     throw new Error("Registry must be an object");
   }
@@ -26,19 +27,10 @@ export function resolvePnpmVersion(tag: string, registry: unknown): string {
     throw new Error("`dist-tags` must be an object");
   }
 
-  const entry = Object.entries(distTags).find((entry) => entry[0] === tag);
-  if (!entry) {
-    throw new Error(`Unknown tag: ${tag}`);
-  }
-
-  if (typeof entry[1] !== "string") {
-    throw new Error(`Tag ${tag} did not resolve to a string`);
-  }
-
-  return entry[1];
+  return distTags as Record<string, unknown>;
 }
 
-export function verifyPnpmVersion(tag: string, registry: unknown): void {
+function getRegistryVersions(registry: unknown): string[] {
   if (typeof registry !== "object" || registry === null) {
     throw new Error("Registry must be an object");
   }
@@ -52,10 +44,31 @@ export function verifyPnpmVersion(tag: string, registry: unknown): void {
     throw new Error("`versions` must be an object");
   }
 
-  const entry = Object.entries(versions).find((entry) => entry[0] === tag);
-  if (!entry) {
-    throw new Error(`Unknown version: ${tag}`);
+  return Object.keys(versions);
+}
+
+export function resolvePnpmVersion(input: string, registry: unknown): string {
+  const range = validRange(input);
+  if (range !== null) {
+    const versions = getRegistryVersions(registry);
+    const version = maxSatisfying(versions, range);
+    if (version === null) {
+      throw new Error(`No pnpm version matching: ${input}`);
+    }
+    return version;
   }
+
+  const distTags = getRegistryDistTags(registry);
+  const entry = Object.entries(distTags).find((entry) => entry[0] === input);
+  if (!entry) {
+    throw new Error(`Unknown tag: ${input}`);
+  }
+
+  if (typeof entry[1] !== "string") {
+    throw new Error(`Tag ${input} did not resolve to a string`);
+  }
+
+  return entry[1];
 }
 
 export function getPnpmMajorVersion(version: string): number {
