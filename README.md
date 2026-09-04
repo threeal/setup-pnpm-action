@@ -11,12 +11,14 @@ A GitHub Action that downloads and sets up standalone [pnpm](https://pnpm.io/) o
 
 ## Inputs
 
-| Name           | Description                                                                                              |
-| -------------- | -------------------------------------------------------------------------------------------------------- |
-| `version`      | The version or tag of pnpm to install.                                                                   |
-| `version-file` | A file specifying the version of pnpm to install. Supports `package.json` with a `packageManager` field. |
+| Name           | Description                                                                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`      | The version or tag of pnpm to install.                                                                                                  |
+| `version-file` | A file specifying the version of pnpm to install. Supports `package.json` with a `devEngines.packageManager` or `packageManager` field. |
 
 `version` and `version-file` are mutually exclusive. If neither is set, the version is read from `package.json` in the current directory if available, otherwise the latest version is installed.
+
+`devEngines.packageManager.version` may have a leading range operator (`^`, `~`, `=`, `>=`, `<=`, `>`, `<`), such as `^11.5.0`, but the action installs exactly the version that follows the operator — it does not resolve the range against other published versions.
 
 ## Outputs
 
