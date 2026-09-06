@@ -10,12 +10,10 @@ This is a JavaScript GitHub Action that downloads and sets up a standalone pnpm 
 
 ### Source Files
 
-- **`src/main.ts`** — Entry point; calls the action and handles errors.
-- **`src/action.ts`** — Action implementation; resolves/verifies the pnpm version, downloads the binary, and adds it to `PATH`.
+- **`src/main.ts`** — Entry point and action implementation; resolves/verifies the pnpm version, downloads the binary, adds it to `PATH`, and handles errors. Not covered by vitest by design — end-to-end verification is delegated to the CI `test` job matrix instead.
 - **`src/input.ts`** — Reads action inputs (`version`, `version-file`) and resolves them to a version string; exports `getPlatform()` and `getArch()`.
 - **`src/pnpm.ts`** — pnpm-specific utilities: npm registry fetch, version resolution/verification, home path, and download URL construction.
 - **`src/install.ts`** — Archive extraction (`.tar.gz`, `.zip`) and setting executable permissions.
-- **`src/action.test.ts`** — Integration tests with a mocked GitHub Actions environment and real binary download.
 - **`src/input.test.ts`** — Tests for `input.ts`.
 - **`src/pnpm.test.ts`** — Tests for `pnpm.ts`, including live network calls.
 - **`src/install.test.ts`** — Tests for `install.ts`.
