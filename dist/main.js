@@ -1,28 +1,10 @@
-import { EOL, platform, arch } from 'os';
 import { spawn } from 'child_process';
 import 'fs';
 import { access, mkdir, rm, readFile, appendFile, chmod } from 'fs/promises';
+import { platform, arch, EOL } from 'os';
 import { join, basename, delimiter } from 'path';
 
-// node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/log.js
-function logInfo(message) {
-  process.stdout.write(`${message}${EOL}`);
-}
-function logError(err, options) {
-  const message = err instanceof Error ? err.message : String(err);
-  const params = "";
-  process.stdout.write(`::error${params}::${message}${EOL}`);
-}
-function logCommand(command, ...args) {
-  const message = [command, ...args].join(" ");
-  process.stdout.write(`[command]${message}${EOL}`);
-}
-function beginLogGroup(name) {
-  process.stdout.write(`::group::${name}${EOL}`);
-}
-function endLogGroup() {
-  process.stdout.write(`::endgroup::${EOL}`);
-}
+// node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/exec.js
 function exec(command, args, opts) {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
@@ -81,6 +63,24 @@ async function setEnv(name, value) {
 async function addPath(sysPath) {
   process.env.PATH = process.env.PATH !== void 0 ? `${sysPath}${delimiter}${process.env.PATH}` : sysPath;
   await appendFile(getGitHubPath(), `${sysPath}${EOL}`);
+}
+function logInfo(message) {
+  process.stdout.write(`${message}${EOL}`);
+}
+function logError(err, options) {
+  const message = err instanceof Error ? err.message : String(err);
+  const params = "";
+  process.stdout.write(`::error${params}::${message}${EOL}`);
+}
+function logCommand(command, ...args) {
+  const message = [command, ...args].join(" ");
+  process.stdout.write(`[command]${message}${EOL}`);
+}
+function beginLogGroup(name) {
+  process.stdout.write(`::group::${name}${EOL}`);
+}
+function endLogGroup() {
+  process.stdout.write(`::endgroup::${EOL}`);
 }
 function getPlatform() {
   const val = platform();
@@ -278,8 +278,8 @@ function getPnpm11DownloadUrl({
   };
 }
 
-// src/action.ts
-async function setupPnpmAction() {
+// src/main.ts
+try {
   const platform2 = getPlatform();
   const arch2 = getArch();
   let version = await getVersionInput();
@@ -350,10 +350,7 @@ async function setupPnpmAction() {
   logInfo("Add pnpm to PATH");
   await addPath(pnpmHome);
   await setOutput("version", version);
-}
-
-// src/main.ts
-await setupPnpmAction().catch((err) => {
+} catch (err) {
   logError(err);
   process.exitCode = 1;
-});
+}
