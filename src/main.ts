@@ -18,7 +18,6 @@ import {
   getPnpmHome,
   getPnpmMajorVersion,
   resolvePnpmVersion,
-  verifyPnpmVersion,
 } from "./pnpm.js";
 
 try {
@@ -26,16 +25,11 @@ try {
   const arch = getArch();
 
   let version = await getVersionInput();
-  if (/^\d+\.\d+\.\d+/.test(version)) {
-    logInfo(`Verify pnpm version ${version}`);
-    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
-    verifyPnpmVersion(version, registry);
-  } else {
-    logInfo(`Resolve pnpm version from ${version}`);
-    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
-    version = resolvePnpmVersion(version, registry);
-    logInfo(`Use pnpm version ${version}`);
-  }
+  logInfo(`Resolve pnpm version from ${version}`);
+  const registry = await fetchNpmPackageRegistry("@pnpm/exe");
+  version = resolvePnpmVersion(version, registry);
+  logInfo(`Use pnpm version ${version}`);
+
   const majorVersion = getPnpmMajorVersion(version);
 
   const pnpmHome = getPnpmHome({ version, platform, arch });

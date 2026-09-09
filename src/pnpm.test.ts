@@ -9,7 +9,6 @@ import {
   getPnpmHome,
   getPnpmMajorVersion,
   resolvePnpmVersion,
-  verifyPnpmVersion,
 } from "./pnpm.js";
 
 vi.mock(import("ghakit/vars"));
@@ -34,7 +33,7 @@ describe("resolvePnpmVersion", { concurrent: true }, () => {
     expect(version).toBe("11.5.0");
   });
 
-  test("throws when registry is not an object", () => {
+  test("throws when registry is not an object for a tag", () => {
     expect(() => resolvePnpmVersion("latest", "")).toThrow(
       "Registry must be an object",
     );
@@ -63,38 +62,94 @@ describe("resolvePnpmVersion", { concurrent: true }, () => {
       resolvePnpmVersion("latest", { "dist-tags": { latest: {} } }),
     ).toThrow("Tag latest did not resolve to a string");
   });
-});
 
-describe("verifyPnpmVersion", { concurrent: true }, () => {
-  test("verify a pnpm version", () => {
-    const registry = { versions: { "10.34.0": {} } };
-    expect(() => {
-      verifyPnpmVersion("10.34.0", registry);
-    }).not.toThrow();
+  test("resolves an exact pnpm version", () => {
+    const registry = { versions: { "10.34.0": {}, "10.35.0": {} } };
+    expect(resolvePnpmVersion("10.34.0", registry)).toBe("10.34.0");
   });
 
-  test("throws when registry is not an object", () => {
-    expect(() => {
-      verifyPnpmVersion("10.34.0", "");
-    }).toThrow("Registry must be an object");
+  test("resolves an exact pnpm version with an `=` operator", () => {
+    const registry = { versions: { "10.34.0": {}, "10.35.0": {} } };
+    expect(resolvePnpmVersion("=10.34.0", registry)).toBe("10.34.0");
+  });
+
+  test("resolves the highest version matching a `^` range", () => {
+    const registry = {
+      versions: { "10.34.0": {}, "10.35.0": {}, "11.0.0": {} },
+    };
+    expect(resolvePnpmVersion("^10.0.0", registry)).toBe("10.35.0");
+  });
+
+  test("resolves a `^` range below the first non-zero component", () => {
+    const registry = {
+      versions: { "0.2.3": {}, "0.2.9": {}, "0.3.0": {} },
+    };
+    expect(resolvePnpmVersion("^0.2.3", registry)).toBe("0.2.9");
+  });
+
+  test("resolves a `^` range that only matches an exact version", () => {
+    const registry = { versions: { "0.0.3": {}, "0.0.4": {} } };
+    expect(resolvePnpmVersion("^0.0.3", registry)).toBe("0.0.3");
+  });
+
+  test("resolves the highest version matching a `~` range", () => {
+    const registry = {
+      versions: { "10.34.0": {}, "10.34.5": {}, "10.35.0": {} },
+    };
+    expect(resolvePnpmVersion("~10.34.0", registry)).toBe("10.34.5");
+  });
+
+  test("resolves the highest version matching a `>=` range", () => {
+    const registry = {
+      versions: { "10.33.0": {}, "10.34.0": {}, "11.0.0": {} },
+    };
+    expect(resolvePnpmVersion(">=10.34.0", registry)).toBe("11.0.0");
+  });
+
+  test("resolves the highest version matching a `<=` range", () => {
+    const registry = {
+      versions: { "10.33.0": {}, "10.34.0": {}, "11.0.0": {} },
+    };
+    expect(resolvePnpmVersion("<=10.34.0", registry)).toBe("10.34.0");
+  });
+
+  test("resolves the highest version matching a `>` range", () => {
+    const registry = { versions: { "10.34.0": {}, "10.35.0": {} } };
+    expect(resolvePnpmVersion(">10.34.0", registry)).toBe("10.35.0");
+  });
+
+  test("resolves the highest version matching a `<` range", () => {
+    const registry = { versions: { "10.33.0": {}, "10.34.0": {} } };
+    expect(resolvePnpmVersion("<10.34.0", registry)).toBe("10.33.0");
+  });
+
+  test("skips registry versions that are not valid semver", () => {
+    const registry = { versions: { "not-a-version": {}, "10.34.0": {} } };
+    expect(resolvePnpmVersion("^10.0.0", registry)).toBe("10.34.0");
+  });
+
+  test("throws when registry is not an object for a version", () => {
+    expect(() => resolvePnpmVersion("10.34.0", "")).toThrow(
+      "Registry must be an object",
+    );
   });
 
   test("throws when `versions` field is missing", () => {
-    expect(() => {
-      verifyPnpmVersion("10.34.0", {});
-    }).toThrow("Missing `versions` field in registry");
+    expect(() => resolvePnpmVersion("10.34.0", {})).toThrow(
+      "Missing `versions` field in registry",
+    );
   });
 
-  test("throws when versions field is not an object", () => {
-    expect(() => {
-      verifyPnpmVersion("10.34.0", { versions: "" });
-    }).toThrow("`versions` must be an object");
+  test("throws when `versions` field is not an object", () => {
+    expect(() => resolvePnpmVersion("10.34.0", { versions: "" })).toThrow(
+      "`versions` must be an object",
+    );
   });
 
-  test("throws when version not found", () => {
-    expect(() => {
-      verifyPnpmVersion("10.34.0", { versions: { "11.5.0": {} } });
-    }).toThrow("Unknown version: 10.34.0");
+  test("throws when no version matches", () => {
+    expect(() =>
+      resolvePnpmVersion("^99.0.0", { versions: { "10.34.0": {} } }),
+    ).toThrow("No pnpm version matching: ^99.0.0");
   });
 });
 
