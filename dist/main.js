@@ -192,27 +192,56 @@ async function fetchNpmPackageRegistry(pkg) {
   }
   return res.json();
 }
-function resolvePnpmVersion(tag, registry) {
-  if (typeof registry !== "object" || registry === null) {
-    throw new Error("Registry must be an object");
-  }
-  if (!("dist-tags" in registry)) {
-    throw new Error("Missing `dist-tags` field in registry");
-  }
-  const distTags = registry["dist-tags"];
-  if (typeof distTags !== "object" || distTags === null) {
-    throw new Error("`dist-tags` must be an object");
-  }
-  const entry = Object.entries(distTags).find((entry2) => entry2[0] === tag);
-  if (!entry) {
-    throw new Error(`Unknown tag: ${tag}`);
-  }
-  if (typeof entry[1] !== "string") {
-    throw new Error(`Tag ${tag} did not resolve to a string`);
-  }
-  return entry[1];
+function compareVersions(a, b) {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  return a.patch - b.patch;
 }
-function verifyPnpmVersion(tag, registry) {
+var VERSION_RANGE_PATTERN = /^(\^|~|>=|<=|>|<|=)?(\d+)\.(\d+)\.(\d+)$/;
+function parseVersionRange(range) {
+  const match = VERSION_RANGE_PATTERN.exec(range);
+  if (!match) return null;
+  const [, operator, major, minor, patch] = match;
+  const base = {
+    major: Number(major),
+    minor: Number(minor),
+    patch: Number(patch)
+  };
+  switch (operator) {
+    case ">=":
+      return (version) => compareVersions(version, base) >= 0;
+    case "<=":
+      return (version) => compareVersions(version, base) <= 0;
+    case ">":
+      return (version) => compareVersions(version, base) > 0;
+    case "<":
+      return (version) => compareVersions(version, base) < 0;
+    case "^": {
+      const upper = base.major > 0 ? { major: base.major + 1, minor: 0, patch: 0 } : base.minor > 0 ? { major: 0, minor: base.minor + 1, patch: 0 } : { major: 0, minor: 0, patch: base.patch + 1 };
+      return (version) => compareVersions(version, base) >= 0 && compareVersions(version, upper) < 0;
+    }
+    case "~": {
+      const upper = {
+        major: base.major,
+        minor: base.minor + 1,
+        patch: 0
+      };
+      return (version) => compareVersions(version, base) >= 0 && compareVersions(version, upper) < 0;
+    }
+    default:
+      return (version) => compareVersions(version, base) === 0;
+  }
+}
+function parseVersion(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match) return null;
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3])
+  };
+}
+function getRegistryVersions(registry) {
   if (typeof registry !== "object" || registry === null) {
     throw new Error("Registry must be an object");
   }
@@ -223,10 +252,46 @@ function verifyPnpmVersion(tag, registry) {
   if (typeof versions !== "object" || versions === null) {
     throw new Error("`versions` must be an object");
   }
-  const entry = Object.entries(versions).find((entry2) => entry2[0] === tag);
-  if (!entry) {
-    throw new Error(`Unknown version: ${tag}`);
+  return Object.keys(versions);
+}
+function getRegistryDistTags(registry) {
+  if (typeof registry !== "object" || registry === null) {
+    throw new Error("Registry must be an object");
   }
+  if (!("dist-tags" in registry)) {
+    throw new Error("Missing `dist-tags` field in registry");
+  }
+  const distTags = registry["dist-tags"];
+  if (typeof distTags !== "object" || distTags === null) {
+    throw new Error("`dist-tags` must be an object");
+  }
+  return distTags;
+}
+function resolvePnpmVersion(input, registry) {
+  const matchesRange = parseVersionRange(input);
+  if (matchesRange) {
+    let best = null;
+    for (const raw of getRegistryVersions(registry)) {
+      const parsed = parseVersion(raw);
+      if (!parsed || !matchesRange(parsed)) continue;
+      if (!best || compareVersions(parsed, best.parsed) > 0) {
+        best = { raw, parsed };
+      }
+    }
+    if (!best) {
+      throw new Error(`No pnpm version matching: ${input}`);
+    }
+    return best.raw;
+  }
+  const distTags = getRegistryDistTags(registry);
+  const entry = Object.entries(distTags).find((entry2) => entry2[0] === input);
+  if (!entry) {
+    throw new Error(`Unknown tag: ${input}`);
+  }
+  if (typeof entry[1] !== "string") {
+    throw new Error(`Tag ${input} did not resolve to a string`);
+  }
+  return entry[1];
 }
 function getPnpmMajorVersion(version) {
   const match = /^(\d+)/.exec(version);
@@ -283,16 +348,10 @@ try {
   const platform2 = getPlatform();
   const arch2 = getArch();
   let version = await getVersionInput();
-  if (/^\d+\.\d+\.\d+/.test(version)) {
-    logInfo(`Verify pnpm version ${version}`);
-    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
-    verifyPnpmVersion(version, registry);
-  } else {
-    logInfo(`Resolve pnpm version from ${version}`);
-    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
-    version = resolvePnpmVersion(version, registry);
-    logInfo(`Use pnpm version ${version}`);
-  }
+  logInfo(`Resolve pnpm version from ${version}`);
+  const registry = await fetchNpmPackageRegistry("@pnpm/exe");
+  version = resolvePnpmVersion(version, registry);
+  logInfo(`Use pnpm version ${version}`);
   const majorVersion = getPnpmMajorVersion(version);
   const pnpmHome = getPnpmHome({ version, platform: platform2, arch: arch2 });
   await setEnv("PNPM_HOME", pnpmHome);
