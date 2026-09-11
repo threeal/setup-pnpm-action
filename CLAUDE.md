@@ -4,74 +4,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## About This Repository
 
-This is a JavaScript GitHub Action that downloads and sets up a standalone pnpm binary on all GitHub-hosted runner platforms (Linux x64/arm64, macOS x64/arm64, Windows x64/arm64).
+Downloads and sets up a standalone pnpm binary on all GitHub-hosted runner platforms (Linux x64/arm64, macOS x64/arm64, Windows x64/arm64). GitHub Action, TypeScript targeting Node 24, ESM.
 
-## Architecture
+## Rules that aren't obvious from the code
 
-### Source Files
+- Import paths must end in `.js`, even when importing `.ts` source files. `tsconfig.json` sets `moduleResolution: node16`, which requires this.
+- `dist/main.js` (built by `tsup` from `src/main.ts`) must be committed — `action.yml` points to it directly as the runtime entry, and CI fails if building produces a diff.
+- `lefthook run pre-commit` auto-fixes formatting/lint and rebuilds `dist/main.js`; `fail_on_changes` fails the run if any file changed. If that happens, re-stage the changed files and rerun.
+- Vitest's 100% coverage threshold applies to the whole run, not per file. Running a single test file can fail coverage if it imports source another file is responsible for covering — use the full suite for an accurate result.
+- `src/main.ts` is not covered by vitest by design — end-to-end verification is delegated to the CI `test` job matrix instead.
+- `tsup` bundles everything at build time, so every package — including runtime dependencies — belongs in `devDependencies`; there's no `dependencies` field to keep in sync.
+- Prettier auto-reorders imports (`prettier-plugin-organize-imports`) — reordering on format is expected, not a bug.
 
-- **`src/main.ts`** — Entry point and action implementation; resolves/verifies the pnpm version, downloads the binary, adds it to `PATH`, and handles errors. Not covered by vitest by design — end-to-end verification is delegated to the CI `test` job matrix instead.
-- **`src/input.ts`** — Reads action inputs (`version`, `version-file`) and resolves them to a version string; exports `getPlatform()` and `getArch()`.
-- **`src/pnpm.ts`** — pnpm-specific utilities: npm registry fetch, version resolution/verification, home path, and download URL construction.
-- **`src/install.ts`** — Archive extraction (`.tar.gz`, `.zip`) and setting executable permissions.
-- **`src/input.test.ts`** — Tests for `input.ts`.
-- **`src/pnpm.test.ts`** — Tests for `pnpm.ts`, including live network calls.
-- **`src/install.test.ts`** — Tests for `install.ts`.
+## Layout
 
-### TypeScript Configuration
+- `src/main.ts` — entry point and action implementation; resolves/verifies the pnpm version, downloads the binary, adds it to `PATH`, and handles errors.
+- `src/input.ts` — reads action inputs (`version`, `version-file`) and resolves them to a version string; exports `getPlatform()` and `getArch()`.
+- `src/pnpm.ts` — pnpm-specific utilities: npm registry fetch, version resolution/verification, home path, and download URL construction.
+- `src/install.ts` — archive extraction (`.tar.gz`, `.zip`) and setting executable permissions.
+- `src/*.test.ts` — colocated with the source they test, except `main.ts` (see rules above).
 
-- **`tsconfig.json`** — Type-check only config (noEmit); requires `.js` extensions on imports even for `.ts` source files.
+## Config map
 
-### Build Configuration
+- Type checking — `tsconfig.json`
+- Lint — `eslint.config.ts`
+- Format — `.prettierrc.json`
+- Bundler — `tsup.config.ts`
+- Tests + coverage — `vitest.config.ts`
+- Git hooks — `lefthook.yaml`
+- CI — `.github/workflows/ci.yaml`
+- Dependency updates — `.github/dependabot.yaml`
+- Action inputs/outputs/branding — `action.yml`
 
-- **`tsup.config.ts`** — Bundles `src/main.ts` as a single ESM file with tree-shaking.
+## Commands
 
-### Build Output
-
-- **`dist/main.js`** — Single bundled ESM file; must be committed (CI checks for no diff after build).
-
-### Action Definition
-
-- **`action.yml`** — Declares inputs (`version`, `version-file`), output (`version`), and the Node.js runtime pointing to `dist/main.js`.
-
-## Tooling
-
-- **pnpm** — Package manager; version pinned via `packageManager` in `package.json`; requires Node >=24.
-- **tsup** — Bundler; all deps (including runtime ones) go in `devDependencies` — no runtime `dependencies` needed.
-- **ghakit** — GitHub Actions toolkit for inputs, outputs, logging, and spawning processes.
-- **ESLint** — Linter with flat config (`eslint.config.ts`); uses `typescript-eslint` strict + stylistic rules.
-- **Prettier** — Formatter; `prettier-plugin-organize-imports` manages import order automatically.
-- **Lefthook** — Git hook manager via `lefthook.yaml`; a standalone binary, not a pnpm package.
-- **Vitest** — Test runner; coverage always enabled at 100% thresholds across all metrics.
-- **Dependabot** — Keeps GitHub Actions and npm dependencies up to date via `.github/dependabot.yaml`.
-
-## Testing
-
-```sh
-pnpm vitest run             # Run all tests
-pnpm vitest run <file>      # Run a single test file
-```
-
-Coverage is always enabled and computed for all files imported during the test run. Running a single test file may fail the 100% threshold if it imports a source file that another test is responsible for fully covering — use the full suite for accurate results.
-
-## Checking and Fixing
-
-Use Lefthook to run the same steps as the pre-commit hook:
-
-```sh
-lefthook run pre-commit              # staged files only (default)
-lefthook run pre-commit --all-files  # all files — matches what CI runs
-```
-
-This installs dependencies, fixes formatting, fixes lint, type-checks, and builds the action — in that order, stopping on the first failure. If any file changes during the run, it also fails and shows a diff of what changed — re-stage the changed files and retry.
-
-Individual commands (manual fallback if needed): `pnpm prettier --write .`, `pnpm eslint --fix`, `pnpm tsc`, `pnpm tsup`.
-
-## CI
-
-CI has two jobs:
-
-- **Check** — runs `lefthook run pre-commit --all-files`, then `pnpm vitest run`.
-- **Test** — runs the action end-to-end on `ubuntu-24.04`, `ubuntu-24.04-arm`, `windows-2025`, `windows-11-arm`, `macos-15`, and `macos-15-intel`.
-
-See `.github/workflows/ci.yaml` for full details.
+- `lefthook run pre-commit` — lint/format/build on staged files (`--all-files` to match CI)
+- `pnpm vitest run` — full test suite with coverage
