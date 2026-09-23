@@ -36,28 +36,92 @@ export function extractVersionFromPackageJson(packageJson: unknown): string {
     throw new Error("package.json must be an object");
   }
 
-  if (!("packageManager" in packageJson)) {
-    throw new Error("Missing `packageManager` field in package.json");
+  if ("devEngines" in packageJson) {
+    if (
+      typeof packageJson.devEngines !== "object" ||
+      packageJson.devEngines === null
+    ) {
+      throw new Error("`devEngines` must be an object");
+    }
+
+    const devEngines = packageJson.devEngines;
+    if ("packageManager" in devEngines) {
+      if (
+        typeof devEngines.packageManager !== "object" ||
+        devEngines.packageManager === null
+      ) {
+        throw new Error("`devEngines.packageManager` must be an object");
+      }
+
+      const packageManager = devEngines.packageManager;
+
+      if (!("name" in packageManager)) {
+        throw new Error(
+          "Missing `name` field in `devEngines.packageManager`",
+        );
+      }
+
+      if (typeof packageManager.name !== "string") {
+        throw new Error("`devEngines.packageManager.name` must be a string");
+      }
+
+      if (packageManager.name !== "pnpm") {
+        throw new Error(
+          `Unsupported package manager: ${packageManager.name}, expected pnpm`,
+        );
+      }
+
+      if (!("version" in packageManager)) {
+        throw new Error(
+          "Missing `version` field in `devEngines.packageManager`",
+        );
+      }
+
+      if (typeof packageManager.version !== "string") {
+        throw new Error(
+          "`devEngines.packageManager.version` must be a string",
+        );
+      }
+
+      const match = /^(?:\^|~|>=|<=|>|<|=)?(\d+\.\d+\.\d+)(?:$|\+.*)$/.exec(
+        packageManager.version,
+      );
+      if (!match) {
+        throw new Error(
+          `Invalid \`devEngines.packageManager.version\` value: ${packageManager.version}`,
+        );
+      }
+
+      return match[1];
+    }
   }
 
-  if (typeof packageJson.packageManager !== "string") {
-    throw new Error("`packageManager` must be a string");
-  }
+  if ("packageManager" in packageJson) {
+    if (typeof packageJson.packageManager !== "string") {
+      throw new Error("`packageManager` must be a string");
+    }
 
-  const match = /^([^@]+)@(\d+\.\d+\.\d+)(?:$|\+.*)$/.exec(
-    packageJson.packageManager,
-  );
-  if (match?.length !== 3) {
-    throw new Error(
-      `Invalid \`packageManager\` value: ${packageJson.packageManager}`,
+    const match = /^([^@]+)@(\d+\.\d+\.\d+)(?:$|\+.*)$/.exec(
+      packageJson.packageManager,
     );
+    if (match?.length !== 3) {
+      throw new Error(
+        `Invalid \`packageManager\` value: ${packageJson.packageManager}`,
+      );
+    }
+
+    if (match[1] !== "pnpm") {
+      throw new Error(
+        `Unsupported package manager: ${match[1]}, expected pnpm`,
+      );
+    }
+
+    return match[2];
   }
 
-  if (match[1] !== "pnpm") {
-    throw new Error(`Unsupported package manager: ${match[1]}, expected pnpm`);
-  }
-
-  return match[2];
+  throw new Error(
+    "Missing `devEngines.packageManager` and `packageManager` fields in package.json",
+  );
 }
 
 export async function getVersionInput(): Promise<string> {
