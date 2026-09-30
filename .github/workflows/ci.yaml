@@ -97,7 +97,7 @@ jobs:
         shell: bash
         run: |
           mkdir project
-          echo '{"packageManager":"pnpm@9.15.0"}' > project/package.json
+          echo '{"devEngines":{"packageManager":{"name":"pnpm","version":"9.15.0"}}}' > project/package.json
 
       - name: Setup pnpm with version-file input
         id: setup-pnpm-version-file
