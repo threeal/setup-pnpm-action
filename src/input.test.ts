@@ -78,20 +78,6 @@ describe("getArch", () => {
 });
 
 describe("extractVersionFromPackageJson", () => {
-  test("returns the version", () => {
-    expect(
-      extractVersionFromPackageJson({ packageManager: "pnpm@11.5.0" }),
-    ).toBe("11.5.0");
-  });
-
-  test("returns the version when build metadata is present", () => {
-    expect(
-      extractVersionFromPackageJson({
-        packageManager: "pnpm@11.5.0+sha256.abc123",
-      }),
-    ).toBe("11.5.0");
-  });
-
   test("throws when not an object", () => {
     expect(() => extractVersionFromPackageJson("not an object")).toThrow(
       "package.json must be an object",
@@ -104,29 +90,148 @@ describe("extractVersionFromPackageJson", () => {
     );
   });
 
-  test("throws when packageManager is missing", () => {
+  test("throws when both devEngines.packageManager and packageManager are missing", () => {
     expect(() => extractVersionFromPackageJson({})).toThrow(
-      "Missing `packageManager` field in package.json",
+      "Missing `devEngines.packageManager` and `packageManager` fields in package.json",
     );
   });
 
-  test("throws when packageManager is not a string", () => {
-    expect(() =>
-      extractVersionFromPackageJson({ packageManager: 123 }),
-    ).toThrow("`packageManager` must be a string");
+  test("prefers devEngines.packageManager over packageManager", () => {
+    expect(
+      extractVersionFromPackageJson({
+        devEngines: { packageManager: { name: "pnpm", version: "11.5.0" } },
+        packageManager: "pnpm@9.15.0",
+      }),
+    ).toBe("11.5.0");
   });
 
-  test("throws when packageManager has an invalid format", () => {
-    expect(() =>
-      extractVersionFromPackageJson({ packageManager: "invalid" }),
-    ).toThrow("Invalid `packageManager` value: invalid");
+  const sources = [
+    {
+      name: "packageManager",
+      build: (manager: unknown, version: unknown) => ({
+        packageManager: `${String(manager)}@${String(version)}`,
+      }),
+      notAString: { packageManager: 123 },
+      notAStringMessage: "`packageManager` must be a string",
+      invalidFormat: { packageManager: "invalid" },
+      invalidFormatMessage: "Invalid `packageManager` value: invalid",
+    },
+    {
+      name: "devEngines.packageManager",
+      build: (manager: unknown, version: unknown) => ({
+        devEngines: { packageManager: { name: manager, version } },
+      }),
+      notAString: {
+        devEngines: { packageManager: { name: "pnpm", version: 123 } },
+      },
+      notAStringMessage: "`devEngines.packageManager.version` must be a string",
+      invalidFormat: {
+        devEngines: { packageManager: { name: "pnpm", version: "invalid" } },
+      },
+      invalidFormatMessage:
+        "Invalid `devEngines.packageManager.version` value: invalid",
+    },
+  ];
+
+  describe.each(sources)("via $name", (source) => {
+    test("returns the version", () => {
+      expect(
+        extractVersionFromPackageJson(source.build("pnpm", "11.5.0")),
+      ).toBe("11.5.0");
+    });
+
+    test("returns the version when build metadata is present", () => {
+      expect(
+        extractVersionFromPackageJson(
+          source.build("pnpm", "11.5.0+sha256.abc123"),
+        ),
+      ).toBe("11.5.0");
+    });
+
+    test("throws when the package manager is not pnpm", () => {
+      expect(() =>
+        extractVersionFromPackageJson(source.build("npm", "11.16.0")),
+      ).toThrow("Unsupported package manager: npm, expected pnpm");
+    });
+
+    test("throws when the version is not a string", () => {
+      expect(() => extractVersionFromPackageJson(source.notAString)).toThrow(
+        source.notAStringMessage,
+      );
+    });
+
+    test("throws when the version has an invalid format", () => {
+      expect(() => extractVersionFromPackageJson(source.invalidFormat)).toThrow(
+        source.invalidFormatMessage,
+      );
+    });
   });
 
-  test("throws when the package manager is not pnpm", () => {
+  test("throws when devEngines is not an object", () => {
     expect(() =>
-      extractVersionFromPackageJson({ packageManager: "npm@11.16.0" }),
-    ).toThrow("Unsupported package manager: npm, expected pnpm");
+      extractVersionFromPackageJson({ devEngines: "not an object" }),
+    ).toThrow("`devEngines` must be an object");
   });
+
+  test("throws when devEngines.packageManager is not an object", () => {
+    expect(() =>
+      extractVersionFromPackageJson({
+        devEngines: { packageManager: "not an object" },
+      }),
+    ).toThrow("`devEngines.packageManager` must be an object");
+  });
+
+  test("throws when devEngines.packageManager.name is missing", () => {
+    expect(() =>
+      extractVersionFromPackageJson({
+        devEngines: { packageManager: { version: "11.5.0" } },
+      }),
+    ).toThrow("Missing `name` field in `devEngines.packageManager`");
+  });
+
+  test("throws when devEngines.packageManager.name is not a string", () => {
+    expect(() =>
+      extractVersionFromPackageJson({
+        devEngines: { packageManager: { name: 123, version: "11.5.0" } },
+      }),
+    ).toThrow("`devEngines.packageManager.name` must be a string");
+  });
+
+  test("throws when devEngines.packageManager.version is missing", () => {
+    expect(() =>
+      extractVersionFromPackageJson({
+        devEngines: { packageManager: { name: "pnpm" } },
+      }),
+    ).toThrow("Missing `version` field in `devEngines.packageManager`");
+  });
+
+  const rangeOperators = ["^", "~", "=", ">=", "<=", ">", "<"];
+
+  test.each(rangeOperators)(
+    "returns the version when devEngines.packageManager.version has a leading %s operator",
+    (operator) => {
+      expect(
+        extractVersionFromPackageJson({
+          devEngines: {
+            packageManager: { name: "pnpm", version: `${operator}11.5.0` },
+          },
+        }),
+      ).toBe("11.5.0");
+    },
+  );
+
+  const rejectedRanges = [">=11.0.0 <12.0.0", "11.x", "*"];
+
+  test.each(rejectedRanges)(
+    "throws when devEngines.packageManager.version is the range %s",
+    (version) => {
+      expect(() =>
+        extractVersionFromPackageJson({
+          devEngines: { packageManager: { name: "pnpm", version } },
+        }),
+      ).toThrow(`Invalid \`devEngines.packageManager.version\` value: ${version}`);
+    },
+  );
 });
 
 describe("getVersionInput", () => {
