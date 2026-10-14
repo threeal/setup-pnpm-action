@@ -6,6 +6,12 @@ import { basename } from "node:path";
 
 export type Platform = "linux" | "darwin" | "win32";
 
+/**
+ * Gets the platform of the current runner.
+ *
+ * Throws an error if the platform isn't one pnpm provides a build for.
+ * @returns The runner's platform, as named by Node.js.
+ */
 export function getPlatform(): Platform {
   const val = platform();
   switch (val) {
@@ -20,6 +26,12 @@ export function getPlatform(): Platform {
 
 export type Arch = "x64" | "arm64";
 
+/**
+ * Gets the CPU architecture of the current runner.
+ *
+ * Throws an error if the architecture isn't one pnpm provides a build for.
+ * @returns The runner's architecture, as named by Node.js.
+ */
 export function getArch(): Arch {
   const val = arch();
   switch (val) {
@@ -31,6 +43,15 @@ export function getArch(): Arch {
   }
 }
 
+/**
+ * Extracts the pnpm version from the `packageManager` field of a package.json.
+ *
+ * The field must have the form `pnpm@<major>.<minor>.<patch>`, optionally
+ * followed by a `+` and a hash. Any other package manager, version format, or a
+ * missing field throws an error.
+ * @param packageJson - The parsed contents of a package.json file.
+ * @returns The exact pnpm version, without the hash.
+ */
 export function extractVersionFromPackageJson(packageJson: unknown): string {
   if (typeof packageJson !== "object" || packageJson === null) {
     throw new Error("package.json must be an object");
@@ -60,6 +81,16 @@ export function extractVersionFromPackageJson(packageJson: unknown): string {
   return match[2];
 }
 
+/**
+ * Gets the pnpm version to install from the action inputs.
+ *
+ * Uses the `version` input if set, otherwise the version read from the
+ * `version-file` input, and throws an error if both are set. If neither is set,
+ * falls back to the `packageManager` field of the package.json in the current
+ * directory, and then to `latest` if that file is missing or has no valid
+ * version.
+ * @returns Either an exact version or a dist-tag such as `latest`.
+ */
 export async function getVersionInput(): Promise<string> {
   const version = getInput("version").trim();
   const versionFile = getInput("version-file").trim();
