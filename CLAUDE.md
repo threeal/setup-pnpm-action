@@ -9,11 +9,11 @@ Downloads and sets up a standalone pnpm binary on all GitHub-hosted runner platf
 ## Rules that aren't obvious from the code
 
 - Import paths must end in `.js`, even when importing `.ts` source files. `tsconfig.json` sets `moduleResolution: node16`, which requires this.
-- `dist/main.js` (built by `tsup` from `src/main.ts`) must be committed — `action.yml` points to it directly as the runtime entry, and CI fails if building produces a diff.
+- `dist/main.js` (built by Rolldown from `src/main.ts`) must be committed — `action.yml` points to it directly as the runtime entry, and CI fails if building produces a diff.
 - `lefthook run pre-commit` auto-fixes formatting/lint and rebuilds `dist/main.js`; `fail_on_changes` fails the run if any file changed. If that happens, re-stage the changed files and rerun.
 - Vitest's 100% coverage threshold applies to the whole run, not per file. Running a single test file can fail coverage if it imports source another file is responsible for covering — use the full suite for an accurate result.
 - `src/main.ts` is not covered by vitest by design — end-to-end verification is delegated to the CI `test` job matrix instead.
-- `tsup` bundles everything at build time, so every package — including runtime dependencies — belongs in `devDependencies`; there's no `dependencies` field to keep in sync.
+- Rolldown bundles everything at build time, so every package — including runtime dependencies — belongs in `devDependencies`; there's no `dependencies` field to keep in sync.
 - Prettier auto-reorders imports (`prettier-plugin-organize-imports`) — reordering on format is expected, not a bug.
 
 ## Layout
@@ -29,7 +29,7 @@ Downloads and sets up a standalone pnpm binary on all GitHub-hosted runner platf
 - Type checking — `tsconfig.json`
 - Lint — `eslint.config.ts`
 - Format — `.prettierrc.json`
-- Bundler — `tsup.config.ts`
+- Bundler — `rolldown.config.ts`
 - Tests + coverage — `vitest.config.ts`
 - Git hooks — `lefthook.yaml`
 - CI — `.github/workflows/ci.yaml`
