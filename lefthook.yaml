@@ -6,14 +6,14 @@ pre-commit:
     - name: install dependencies
       run: pnpm install
 
-    - name: fix formatting
-      run: pnpm prettier --write .
+    - name: check types
+      run: pnpm tsc
 
     - name: fix lint
       run: pnpm eslint --fix
 
-    - name: check types
-      run: pnpm tsc
+    - name: fix formatting
+      run: pnpm prettier --write .
 
     - name: build action
       run: pnpm rolldown -c
