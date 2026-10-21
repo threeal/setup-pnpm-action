@@ -1,108 +1,110 @@
 import { exec } from "ghakit/exec";
-import { addPath, setEnv, setOutput } from "ghakit/io";
-import {
-  beginLogGroup,
-  endLogGroup,
-  logCommand,
-  logError,
-  logInfo,
-} from "ghakit/log";
-import { access, mkdir, rm } from "node:fs/promises";
+import { addPath, getInput, setEnv, setOutput } from "ghakit/io";
+import { logCommand, logError, logInfo } from "ghakit/log";
+import { getRunnerToolCache } from "ghakit/vars";
+import { existsSync } from "node:fs";
+import { access, chmod, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { getArch, getPlatform, getVersionInput } from "./input.js";
-import { extractArchive, makeExecutable } from "./install.js";
-import {
-  fetchNpmPackageRegistry,
-  getPnpm11DownloadUrl,
-  getPnpmDownloadUrl,
-  getPnpmHome,
-  getPnpmMajorVersion,
-  resolvePnpmVersion,
-  verifyPnpmVersion,
-} from "./pnpm.js";
+import { fetchNpmPackage } from "./npm.js";
+import { getPnpmAsset, resolvePnpmTag, verifyPnpmVersion } from "./pnpm.js";
+import { readVersionFile } from "./version.js";
+
+/**
+ * Logs a command and then runs it.
+ * @param command - The command to run.
+ * @param args - The arguments of the command.
+ */
+async function run(command: string, args: string[]): Promise<void> {
+  logCommand(command, ...args);
+  await exec(command, args);
+}
 
 try {
-  const platform = getPlatform();
-  const arch = getArch();
+  const versionInput = getInput("version").trim();
+  const versionFile = getInput("version-file").trim();
+  if (versionInput !== "" && versionFile !== "") {
+    throw new Error("Cannot specify both `version` and `version-file` inputs");
+  }
 
-  let version = await getVersionInput();
-  if (/^\d+\.\d+\.\d+/.test(version)) {
-    logInfo(`Verify pnpm version ${version}`);
-    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
-    verifyPnpmVersion(version, registry);
+  let spec: string | undefined;
+  if (versionInput !== "") {
+    spec = versionInput;
+  } else if (versionFile !== "") {
+    logInfo(`Read pnpm version from ${versionFile}`);
+    spec = await readVersionFile(versionFile);
+    if (spec === undefined) {
+      throw new Error(`Missing \`packageManager\` field in ${versionFile}`);
+    }
+  } else if (existsSync("package.json")) {
+    logInfo("No version specified, read pnpm version from package.json");
+    try {
+      spec = await readVersionFile("package.json");
+      if (spec === undefined) {
+        logInfo("No `packageManager` field in package.json, use latest");
+      }
+    } catch (err) {
+      logError(err);
+      logInfo("Failed to read pnpm version from package.json, use latest");
+    }
   } else {
-    logInfo(`Resolve pnpm version from ${version}`);
-    const registry = await fetchNpmPackageRegistry("@pnpm/exe");
-    version = resolvePnpmVersion(version, registry);
+    logInfo("No version specified, use latest");
+  }
+  spec ??= "latest";
+
+  let version: string;
+  if (/^\d+\.\d+\.\d+/.test(spec)) {
+    logInfo(`Verify pnpm version ${spec} from npm registry`);
+    const pkg = await fetchNpmPackage("@pnpm/exe");
+    verifyPnpmVersion(spec, pkg);
+    version = spec;
+  } else {
+    logInfo(`Resolve pnpm tag ${spec} from npm registry`);
+    const pkg = await fetchNpmPackage("@pnpm/exe");
+    version = resolvePnpmTag(spec, pkg);
     logInfo(`Use pnpm version ${version}`);
   }
-  const majorVersion = getPnpmMajorVersion(version);
 
-  const pnpmHome = getPnpmHome({ version, platform, arch });
-  await setEnv("PNPM_HOME", pnpmHome);
+  const { platform, arch } = process;
+  const asset = getPnpmAsset(version, platform, arch);
+  const pnpmHome = join(
+    getRunnerToolCache(),
+    "pnpm",
+    `${version}-${platform}-${arch}`,
+  );
 
   try {
     await access(pnpmHome);
-    logInfo("Use cached pnpm");
+    logInfo(`Use cached pnpm from ${pnpmHome}`);
   } catch {
-    if (majorVersion < 11) {
-      const { baseUrl, filename, ext } = getPnpmDownloadUrl({
-        version,
-        platform,
-        arch,
-      });
-      const url = `${baseUrl}/${filename}${ext}`;
+    logInfo(`Install pnpm to ${pnpmHome}`);
+    await mkdir(pnpmHome, { recursive: true });
 
-      logInfo("Create pnpm home");
-      await mkdir(pnpmHome, { recursive: true });
+    const file = join(pnpmHome, asset.fileName);
+    await run("curl", ["-fsSL", "--output", file, asset.url]);
 
-      beginLogGroup("Download pnpm executable");
-      const execFile = join(pnpmHome, `pnpm${ext}`);
-      try {
-        const args: string[] = ["-fL", "--output", execFile, url];
-        logCommand("curl", ...args);
-        await exec("curl", args);
-      } finally {
-        endLogGroup();
-      }
+    switch (asset.type) {
+      case "binary":
+        await chmod(file, 0o755);
+        break;
 
-      await makeExecutable(execFile, ext);
-    } else {
-      const { baseUrl, filename, ext } = getPnpm11DownloadUrl({
-        version,
-        platform,
-        arch,
-      });
-      const url = `${baseUrl}/${filename}${ext}`;
+      case "exe":
+        break;
 
-      logInfo("Create pnpm home");
-      await mkdir(pnpmHome, { recursive: true });
+      case "tar.gz":
+        await run("tar", ["-xzf", file, "-C", pnpmHome]);
+        await rm(file);
+        break;
 
-      beginLogGroup("Download pnpm archive");
-      const archiveFile = join(pnpmHome, filename);
-      try {
-        const args: string[] = ["-fL", "--output", archiveFile, url];
-        logCommand("curl", ...args);
-        await exec("curl", args);
-      } finally {
-        endLogGroup();
-      }
-
-      beginLogGroup("Extract pnpm archive");
-      try {
-        await extractArchive(archiveFile, ext, pnpmHome);
-      } finally {
-        endLogGroup();
-      }
-
-      logInfo("Remove pnpm archive");
-      await rm(archiveFile);
+      case "zip":
+        await run("unzip", ["-q", file, "-d", pnpmHome]);
+        await rm(file);
+        break;
     }
   }
 
   logInfo("Add pnpm to PATH");
+  await setEnv("PNPM_HOME", pnpmHome);
   await addPath(pnpmHome);
-
   await setOutput("version", version);
 } catch (err: unknown) {
   logError(err);

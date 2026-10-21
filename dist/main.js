@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { access, appendFile, chmod, mkdir, readFile, rm } from "node:fs/promises";
-import { EOL, arch, platform } from "node:os";
+import { EOL } from "node:os";
 import { basename, delimiter, join } from "node:path";
 //#region node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/exec.js
 function exec(command, args, opts) {
@@ -77,241 +78,164 @@ function logCommand(command, ...args) {
 	const message = [command, ...args].join(" ");
 	process.stdout.write(`[command]${message}${EOL}`);
 }
-function beginLogGroup(name) {
-	process.stdout.write(`::group::${name}${EOL}`);
-}
-function endLogGroup() {
-	process.stdout.write(`::endgroup::${EOL}`);
+//#endregion
+//#region src/json.ts
+function isRecord(value) {
+	return typeof value === "object" && value !== null;
 }
 //#endregion
-//#region src/input.ts
-function getPlatform() {
-	const val = platform();
-	switch (val) {
-		case "linux":
-		case "darwin":
-		case "win32": return val;
-		default: throw new Error(`Unsupported platform: ${val}`);
-	}
+//#region src/npm.ts
+function parseNpmPackage(data) {
+	if (!isRecord(data) || !isRecord(data["dist-tags"]) || !isRecord(data.versions)) throw new Error("Invalid npm package metadata");
+	return {
+		"dist-tags": data["dist-tags"],
+		versions: data.versions
+	};
 }
-function getArch() {
-	const val = arch();
-	switch (val) {
-		case "x64":
-		case "arm64": return val;
-		default: throw new Error(`Unsupported arch: ${val}`);
-	}
-}
-function extractVersionFromPackageJson(packageJson) {
-	if (typeof packageJson !== "object" || packageJson === null) throw new Error("package.json must be an object");
-	if (!("packageManager" in packageJson)) throw new Error("Missing `packageManager` field in package.json");
-	if (typeof packageJson.packageManager !== "string") throw new Error("`packageManager` must be a string");
-	const match = /^([^@]+)@(\d+\.\d+\.\d+)(?:$|\+.*)$/.exec(packageJson.packageManager);
-	if (match?.length !== 3) throw new Error(`Invalid \`packageManager\` value: ${packageJson.packageManager}`);
-	if (match[1] !== "pnpm") throw new Error(`Unsupported package manager: ${match[1]}, expected pnpm`);
-	return match[2];
-}
-async function getVersionInput() {
-	const version = getInput("version").trim();
-	const versionFile = getInput("version-file").trim();
-	if (version !== "") {
-		if (versionFile !== "") throw new Error("Cannot specify both `version` and `version-file` inputs");
-		return version;
-	}
-	if (versionFile !== "") {
-		const versionFileName = basename(versionFile);
-		if (versionFileName === "package.json") {
-			logInfo("Read version from package.json");
-			const content = await readFile(versionFile, "utf-8");
-			return extractVersionFromPackageJson(JSON.parse(content));
-		} else throw new Error(`Unsupported version file: ${versionFileName}`);
-	}
-	try {
-		const content = await readFile("package.json", "utf-8");
-		logInfo("No version specified, read version from package.json");
-		try {
-			return extractVersionFromPackageJson(JSON.parse(content));
-		} catch (err) {
-			logError(err);
-			logInfo("Failed to read version from package.json, use latest");
-			return "latest";
-		}
-	} catch {
-		logInfo("No version specified, use latest");
-		return "latest";
-	}
-}
-//#endregion
-//#region src/install.ts
-async function extractArchive(file, ext, outputDir) {
-	switch (ext) {
-		case ".tar.gz": {
-			const args = [
-				"-xzvf",
-				file,
-				"-C",
-				outputDir
-			];
-			logCommand("tar", ...args);
-			await exec("tar", args);
-			break;
-		}
-		case ".zip": {
-			const args = [
-				file,
-				"-d",
-				outputDir
-			];
-			logCommand("unzip", ...args);
-			await exec("unzip", args);
-			break;
-		}
-	}
-}
-async function makeExecutable(file, ext) {
-	if (ext === ".exe") return;
-	logInfo("Make pnpm executable");
-	await chmod(file, "755");
+async function fetchNpmPackage(name) {
+	const res = await fetch(`https://registry.npmjs.org/${name}`);
+	if (!res.ok) throw new Error(`Failed to fetch ${name} from npm registry: ${res.statusText}`);
+	return parseNpmPackage(await res.json());
 }
 //#endregion
 //#region src/pnpm.ts
-async function fetchNpmPackageRegistry(pkg) {
-	const res = await fetch(`https://registry.npmjs.org/${pkg}`);
-	if (!res.ok) throw new Error(`Failed to fetch ${pkg} from npm registry: ${res.statusText}`);
-	return res.json();
+function verifyPnpmVersion(version, pkg) {
+	if (!Object.hasOwn(pkg.versions, version)) throw new Error(`Unknown pnpm version: ${version}`);
 }
-function resolvePnpmVersion(tag, registry) {
-	if (typeof registry !== "object" || registry === null) throw new Error("Registry must be an object");
-	if (!("dist-tags" in registry)) throw new Error("Missing `dist-tags` field in registry");
-	const distTags = registry["dist-tags"];
-	if (typeof distTags !== "object" || distTags === null) throw new Error("`dist-tags` must be an object");
-	const entry = Object.entries(distTags).find((entry) => entry[0] === tag);
-	if (!entry) throw new Error(`Unknown tag: ${tag}`);
-	if (typeof entry[1] !== "string") throw new Error(`Tag ${tag} did not resolve to a string`);
-	return entry[1];
+function resolvePnpmTag(tag, pkg) {
+	const version = pkg["dist-tags"][tag];
+	if (typeof version !== "string") throw new Error(`Unknown pnpm tag: ${tag}`);
+	return version;
 }
-function verifyPnpmVersion(tag, registry) {
-	if (typeof registry !== "object" || registry === null) throw new Error("Registry must be an object");
-	if (!("versions" in registry)) throw new Error("Missing `versions` field in registry");
-	const versions = registry.versions;
-	if (typeof versions !== "object" || versions === null) throw new Error("`versions` must be an object");
-	if (!Object.entries(versions).find((entry) => entry[0] === tag)) throw new Error(`Unknown version: ${tag}`);
-}
-function getPnpmMajorVersion(version) {
-	const match = /^(\d+)/.exec(version);
-	if (!match) throw new Error(`Invalid version: ${version}`);
-	return parseInt(match[1], 10);
-}
-function getPnpmHome({ version, platform, arch }) {
-	return join(getRunnerToolCache(), "pnpm", `${version}-${platform}-${arch}`);
-}
-function getOsFromPlatform(platform) {
-	switch (platform) {
-		case "linux": return "linux";
-		case "darwin": return "macos";
-		case "win32": return "win";
+const OS_NAMES = {
+	linux: "linux",
+	darwin: "macos",
+	win32: "win"
+};
+function getPnpmAsset(version, platform, arch) {
+	if (platform !== "linux" && platform !== "darwin" && platform !== "win32") throw new Error(`Unsupported platform: ${platform}`);
+	if (arch !== "x64" && arch !== "arm64") throw new Error(`Unsupported arch: ${arch}`);
+	const baseUrl = `https://github.com/pnpm/pnpm/releases/download/v${version}`;
+	if (parseInt(version, 10) < 11) {
+		const name = `pnpm-${OS_NAMES[platform]}-${arch}`;
+		return platform === "win32" ? {
+			type: "exe",
+			url: `${baseUrl}/${name}.exe`,
+			fileName: "pnpm.exe"
+		} : {
+			type: "binary",
+			url: `${baseUrl}/${name}`,
+			fileName: "pnpm"
+		};
 	}
-}
-function getPnpmDownloadUrl({ version, platform, arch }) {
-	return {
-		baseUrl: `https://github.com/pnpm/pnpm/releases/download/v${version}`,
-		filename: `pnpm-${getOsFromPlatform(platform)}-${arch}`,
-		ext: platform === "win32" ? ".exe" : ""
-	};
-}
-function getPnpm11DownloadUrl({ version, platform, arch }) {
 	if (platform === "darwin" && arch === "x64") throw new Error("pnpm does not provide x64 macOS binaries for version 11 and above");
+	const type = platform === "win32" ? "zip" : "tar.gz";
+	const fileName = `pnpm-${platform}-${arch}.${type}`;
 	return {
-		baseUrl: `https://github.com/pnpm/pnpm/releases/download/v${version}`,
-		filename: `pnpm-${platform}-${arch}`,
-		ext: platform === "win32" ? ".zip" : ".tar.gz"
+		type,
+		url: `${baseUrl}/${fileName}`,
+		fileName
 	};
 }
 //#endregion
+//#region src/version.ts
+function extractVersionFromPackageJson(packageJson) {
+	if (!isRecord(packageJson)) throw new Error("Invalid package.json");
+	const { packageManager } = packageJson;
+	if (packageManager === void 0) return void 0;
+	if (typeof packageManager !== "string") throw new Error(`Invalid \`packageManager\` type: ${typeof packageManager}`);
+	const match = /^([^@]+)@(\d+\.\d+\.\d+)(?:\+.*)?$/.exec(packageManager);
+	if (match === null) throw new Error(`Invalid \`packageManager\` value: ${packageManager}`);
+	if (match[1] !== "pnpm") throw new Error(`Unsupported package manager: ${match[1]}, expected pnpm`);
+	return match[2];
+}
+async function readVersionFile(file) {
+	const fileName = basename(file);
+	if (fileName !== "package.json") throw new Error(`Unsupported version file: ${fileName}`);
+	const content = await readFile(file, "utf-8");
+	return extractVersionFromPackageJson(JSON.parse(content));
+}
+//#endregion
 //#region src/main.ts
+async function run(command, args) {
+	logCommand(command, ...args);
+	await exec(command, args);
+}
 try {
-	const platform = getPlatform();
-	const arch = getArch();
-	let version = await getVersionInput();
-	if (/^\d+\.\d+\.\d+/.test(version)) {
-		logInfo(`Verify pnpm version ${version}`);
-		const registry = await fetchNpmPackageRegistry("@pnpm/exe");
-		verifyPnpmVersion(version, registry);
+	const versionInput = getInput("version").trim();
+	const versionFile = getInput("version-file").trim();
+	if (versionInput !== "" && versionFile !== "") throw new Error("Cannot specify both `version` and `version-file` inputs");
+	let spec;
+	if (versionInput !== "") spec = versionInput;
+	else if (versionFile !== "") {
+		logInfo(`Read pnpm version from ${versionFile}`);
+		spec = await readVersionFile(versionFile);
+		if (spec === void 0) throw new Error(`Missing \`packageManager\` field in ${versionFile}`);
+	} else if (existsSync("package.json")) {
+		logInfo("No version specified, read pnpm version from package.json");
+		try {
+			spec = await readVersionFile("package.json");
+			if (spec === void 0) logInfo("No `packageManager` field in package.json, use latest");
+		} catch (err) {
+			logError(err);
+			logInfo("Failed to read pnpm version from package.json, use latest");
+		}
+	} else logInfo("No version specified, use latest");
+	spec ??= "latest";
+	let version;
+	if (/^\d+\.\d+\.\d+/.test(spec)) {
+		logInfo(`Verify pnpm version ${spec} from npm registry`);
+		const pkg = await fetchNpmPackage("@pnpm/exe");
+		verifyPnpmVersion(spec, pkg);
+		version = spec;
 	} else {
-		logInfo(`Resolve pnpm version from ${version}`);
-		const registry = await fetchNpmPackageRegistry("@pnpm/exe");
-		version = resolvePnpmVersion(version, registry);
+		logInfo(`Resolve pnpm tag ${spec} from npm registry`);
+		const pkg = await fetchNpmPackage("@pnpm/exe");
+		version = resolvePnpmTag(spec, pkg);
 		logInfo(`Use pnpm version ${version}`);
 	}
-	const majorVersion = getPnpmMajorVersion(version);
-	const pnpmHome = getPnpmHome({
-		version,
-		platform,
-		arch
-	});
-	await setEnv("PNPM_HOME", pnpmHome);
+	const { platform, arch } = process;
+	const asset = getPnpmAsset(version, platform, arch);
+	const pnpmHome = join(getRunnerToolCache(), "pnpm", `${version}-${platform}-${arch}`);
 	try {
 		await access(pnpmHome);
-		logInfo("Use cached pnpm");
+		logInfo(`Use cached pnpm from ${pnpmHome}`);
 	} catch {
-		if (majorVersion < 11) {
-			const { baseUrl, filename, ext } = getPnpmDownloadUrl({
-				version,
-				platform,
-				arch
-			});
-			const url = `${baseUrl}/${filename}${ext}`;
-			logInfo("Create pnpm home");
-			await mkdir(pnpmHome, { recursive: true });
-			beginLogGroup("Download pnpm executable");
-			const execFile = join(pnpmHome, `pnpm${ext}`);
-			try {
-				const args = [
-					"-fL",
-					"--output",
-					execFile,
-					url
-				];
-				logCommand("curl", ...args);
-				await exec("curl", args);
-			} finally {
-				endLogGroup();
-			}
-			await makeExecutable(execFile, ext);
-		} else {
-			const { baseUrl, filename, ext } = getPnpm11DownloadUrl({
-				version,
-				platform,
-				arch
-			});
-			const url = `${baseUrl}/${filename}${ext}`;
-			logInfo("Create pnpm home");
-			await mkdir(pnpmHome, { recursive: true });
-			beginLogGroup("Download pnpm archive");
-			const archiveFile = join(pnpmHome, filename);
-			try {
-				const args = [
-					"-fL",
-					"--output",
-					archiveFile,
-					url
-				];
-				logCommand("curl", ...args);
-				await exec("curl", args);
-			} finally {
-				endLogGroup();
-			}
-			beginLogGroup("Extract pnpm archive");
-			try {
-				await extractArchive(archiveFile, ext, pnpmHome);
-			} finally {
-				endLogGroup();
-			}
-			logInfo("Remove pnpm archive");
-			await rm(archiveFile);
+		logInfo(`Install pnpm to ${pnpmHome}`);
+		await mkdir(pnpmHome, { recursive: true });
+		const file = join(pnpmHome, asset.fileName);
+		await run("curl", [
+			"-fsSL",
+			"--output",
+			file,
+			asset.url
+		]);
+		switch (asset.type) {
+			case "binary":
+				await chmod(file, 493);
+				break;
+			case "exe": break;
+			case "tar.gz":
+				await run("tar", [
+					"-xzf",
+					file,
+					"-C",
+					pnpmHome
+				]);
+				await rm(file);
+				break;
+			case "zip":
+				await run("unzip", [
+					"-q",
+					file,
+					"-d",
+					pnpmHome
+				]);
+				await rm(file);
 		}
 	}
 	logInfo("Add pnpm to PATH");
+	await setEnv("PNPM_HOME", pnpmHome);
 	await addPath(pnpmHome);
 	await setOutput("version", version);
 } catch (err) {

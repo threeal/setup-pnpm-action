@@ -1,201 +1,85 @@
-import { getRunnerToolCache } from "ghakit/vars";
-import { join } from "node:path";
-import { Arch, Platform } from "./input.js";
+import type { NpmPackage } from "./npm.js";
 
 /**
- * Fetches a package's metadata from the npm registry.
- * @param pkg - The name of the package to fetch.
- * @returns The package's metadata as parsed JSON, not yet validated.
- */
-export async function fetchNpmPackageRegistry(pkg: string): Promise<unknown> {
-  const res = await fetch(`https://registry.npmjs.org/${pkg}`);
-  if (!res.ok) {
-    throw new Error(
-      `Failed to fetch ${pkg} from npm registry: ${res.statusText}`,
-    );
-  }
-  return res.json();
-}
-
-/**
- * Resolves a dist-tag to the exact pnpm version it points to.
- *
- * Throws an error if the registry metadata has no such dist-tag.
- * @param tag - The dist-tag to resolve, such as `latest`.
- * @param registry - The package metadata returned by `fetchNpmPackageRegistry`.
- * @returns The exact version the dist-tag points to.
- */
-export function resolvePnpmVersion(tag: string, registry: unknown): string {
-  if (typeof registry !== "object" || registry === null) {
-    throw new Error("Registry must be an object");
-  }
-
-  if (!("dist-tags" in registry)) {
-    throw new Error("Missing `dist-tags` field in registry");
-  }
-
-  const distTags = registry["dist-tags"];
-  if (typeof distTags !== "object" || distTags === null) {
-    throw new Error("`dist-tags` must be an object");
-  }
-
-  const entry = Object.entries(distTags).find((entry) => entry[0] === tag);
-  if (!entry) {
-    throw new Error(`Unknown tag: ${tag}`);
-  }
-
-  if (typeof entry[1] !== "string") {
-    throw new Error(`Tag ${tag} did not resolve to a string`);
-  }
-
-  return entry[1];
-}
-
-/**
- * Verifies that an exact pnpm version exists in the registry.
- *
- * Throws an error if the registry metadata doesn't list the version. Unlike
- * `resolvePnpmVersion`, this doesn't accept a dist-tag.
- * @param tag - The exact version to verify.
- * @param registry - The package metadata returned by `fetchNpmPackageRegistry`.
- */
-export function verifyPnpmVersion(tag: string, registry: unknown): void {
-  if (typeof registry !== "object" || registry === null) {
-    throw new Error("Registry must be an object");
-  }
-
-  if (!("versions" in registry)) {
-    throw new Error("Missing `versions` field in registry");
-  }
-
-  const versions = registry.versions;
-  if (typeof versions !== "object" || versions === null) {
-    throw new Error("`versions` must be an object");
-  }
-
-  const entry = Object.entries(versions).find((entry) => entry[0] === tag);
-  if (!entry) {
-    throw new Error(`Unknown version: ${tag}`);
-  }
-}
-
-/**
- * Gets the major part of a pnpm version.
+ * Verifies that an exact pnpm version is published.
  * @param version - The exact version.
- * @returns The major version number.
+ * @param pkg - The `@pnpm/exe` metadata from the npm registry.
  */
-export function getPnpmMajorVersion(version: string): number {
-  const match = /^(\d+)/.exec(version);
-  if (!match) throw new Error(`Invalid version: ${version}`);
-  return parseInt(match[1], 10);
-}
-
-/**
- * Gets the directory a pnpm build is installed into.
- *
- * The directory sits in the runner's tool cache and is unique to each version,
- * platform, and architecture, so an existing one means that build is cached.
- * @param options - The build to get the directory for.
- * @param options.version - The exact pnpm version.
- * @param options.platform - The runner's platform.
- * @param options.arch - The runner's architecture.
- * @returns The path of the directory.
- */
-export function getPnpmHome({
-  version,
-  platform,
-  arch,
-}: {
-  version: string;
-  platform: Platform;
-  arch: Arch;
-}): string {
-  return join(getRunnerToolCache(), "pnpm", `${version}-${platform}-${arch}`);
-}
-
-/**
- * Gets the OS name used in the file names of pnpm 10 and below releases.
- * @param platform - The runner's platform, as named by Node.js.
- * @returns The OS name, such as `macos` for `darwin`.
- */
-function getOsFromPlatform(platform: Platform): string {
-  switch (platform) {
-    case "linux":
-      return "linux";
-    case "darwin":
-      return "macos";
-    case "win32":
-      return "win";
+export function verifyPnpmVersion(version: string, pkg: NpmPackage): void {
+  if (!Object.hasOwn(pkg.versions, version)) {
+    throw new Error(`Unknown pnpm version: ${version}`);
   }
 }
 
 /**
- * Gets the download URL parts of a pnpm 10 and below release.
- *
- * These releases are standalone executables, named with the OS names from
- * `getOsFromPlatform`. For pnpm 11 and above, use `getPnpm11DownloadUrl`.
- * @param options - The build to download.
- * @param options.version - The exact pnpm version.
- * @param options.platform - The runner's platform.
- * @param options.arch - The runner's architecture.
- * @returns The release's base URL, the executable's file name without its
- * extension, and the extension, which is `.exe` on Windows and empty elsewhere.
+ * Resolves a pnpm tag to the exact version it points to.
+ * @param tag - The tag, such as `latest`.
+ * @param pkg - The `@pnpm/exe` metadata from the npm registry.
+ * @returns The exact version.
  */
-export function getPnpmDownloadUrl({
-  version,
-  platform,
-  arch,
-}: {
-  version: string;
-  platform: Platform;
-  arch: Arch;
-}): {
-  baseUrl: string;
-  filename: string;
-  ext: "" | ".exe";
-} {
-  return {
-    baseUrl: `https://github.com/pnpm/pnpm/releases/download/v${version}`,
-    filename: `pnpm-${getOsFromPlatform(platform)}-${arch}`,
-    ext: platform === "win32" ? ".exe" : "",
-  };
+export function resolvePnpmTag(tag: string, pkg: NpmPackage): string {
+  const version = pkg["dist-tags"][tag];
+  if (typeof version !== "string") {
+    throw new Error(`Unknown pnpm tag: ${tag}`);
+  }
+  return version;
 }
 
 /**
- * Gets the download URL parts of a pnpm 11 and above release.
+ * A pnpm release asset, and how to install it once downloaded.
  *
- * These releases are archives, named with the platform names from Node.js.
- * Throws an error on x64 macOS, which these releases have no build for. For
- * pnpm 10 and below, use `getPnpmDownloadUrl`.
- * @param options - The build to download.
- * @param options.version - The exact pnpm version.
- * @param options.platform - The runner's platform.
- * @param options.arch - The runner's architecture.
- * @returns The release's base URL, the archive's file name without its
- * extension, and the extension, which is `.zip` on Windows and `.tar.gz`
- * elsewhere.
+ * A `binary` or `exe` is the pnpm executable itself, where only a `binary` needs
+ * to be made executable, while a `tar.gz` or `zip` is an archive to extract.
+ * The `fileName` is what the download is saved as.
  */
-export function getPnpm11DownloadUrl({
-  version,
-  platform,
-  arch,
-}: {
-  version: string;
-  platform: Platform;
-  arch: Arch;
-}): {
-  baseUrl: string;
-  filename: string;
-  ext: ".tar.gz" | ".zip";
-} {
+export interface PnpmAsset {
+  type: "binary" | "exe" | "tar.gz" | "zip";
+  url: string;
+  fileName: string;
+}
+
+const OS_NAMES = { linux: "linux", darwin: "macos", win32: "win" } as const;
+
+/**
+ * Gets the release asset of a pnpm version for a platform and architecture.
+ *
+ * pnpm 10 and below are released as standalone executables named with their
+ * own OS names, while pnpm 11 and above are released as archives named with
+ * the platform names from Node.js, with no build for x64 macOS.
+ * @param version - The exact pnpm version.
+ * @param platform - The runner's platform, as named by Node.js.
+ * @param arch - The runner's architecture, as named by Node.js.
+ * @returns The asset to download.
+ */
+export function getPnpmAsset(
+  version: string,
+  platform: string,
+  arch: string,
+): PnpmAsset {
+  if (platform !== "linux" && platform !== "darwin" && platform !== "win32") {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+
+  if (arch !== "x64" && arch !== "arm64") {
+    throw new Error(`Unsupported arch: ${arch}`);
+  }
+
+  const baseUrl = `https://github.com/pnpm/pnpm/releases/download/v${version}`;
+
+  if (parseInt(version, 10) < 11) {
+    const name = `pnpm-${OS_NAMES[platform]}-${arch}`;
+    return platform === "win32"
+      ? { type: "exe", url: `${baseUrl}/${name}.exe`, fileName: "pnpm.exe" }
+      : { type: "binary", url: `${baseUrl}/${name}`, fileName: "pnpm" };
+  }
+
   if (platform === "darwin" && arch === "x64") {
     throw new Error(
       "pnpm does not provide x64 macOS binaries for version 11 and above",
     );
   }
-  return {
-    baseUrl: `https://github.com/pnpm/pnpm/releases/download/v${version}`,
-    filename: `pnpm-${platform}-${arch}`,
-    ext: platform === "win32" ? ".zip" : ".tar.gz",
-  };
+
+  const type = platform === "win32" ? "zip" : "tar.gz";
+  const fileName = `pnpm-${platform}-${arch}.${type}`;
+  return { type, url: `${baseUrl}/${fileName}`, fileName };
 }
