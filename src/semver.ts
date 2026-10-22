@@ -100,6 +100,22 @@ function parseRange(
 }
 
 /**
+ * Checks whether a version satisfies a version range.
+ *
+ * A version not of the form `<major>.<minor>.<patch>`, such as a prerelease,
+ * never satisfies a range, and an unsupported range is never satisfied.
+ * @param version - The version to check.
+ * @param range - The version range, as described in {@link parseRange}.
+ * @returns Whether the version satisfies the range.
+ */
+export function satisfies(version: string, range: string): boolean {
+  const parsed = parseVersion(version);
+  const check = parseRange(range);
+  if (parsed === undefined || check === undefined) return false;
+  return check(parsed);
+}
+
+/**
  * Finds the highest version that satisfies a version range.
  *
  * Throws an error if the range isn't supported. Versions not of the form

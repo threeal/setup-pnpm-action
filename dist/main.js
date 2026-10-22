@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { access, appendFile, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { EOL } from "node:os";
-import { basename, delimiter, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 //#region node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/exec.js
 function exec(command, args, opts) {
 	return new Promise((resolve, reject) => {
@@ -79,25 +79,6 @@ function logCommand(command, ...args) {
 	process.stdout.write(`[command]${message}${EOL}`);
 }
 //#endregion
-//#region src/json.ts
-function isRecord(value) {
-	return typeof value === "object" && value !== null;
-}
-//#endregion
-//#region src/npm.ts
-function parseNpmPackage(data) {
-	if (!isRecord(data) || !isRecord(data["dist-tags"]) || !isRecord(data.versions)) throw new Error("Invalid npm package metadata");
-	return {
-		"dist-tags": data["dist-tags"],
-		versions: data.versions
-	};
-}
-async function fetchNpmPackage(name) {
-	const res = await fetch(`https://registry.npmjs.org/${name}`);
-	if (!res.ok) throw new Error(`Failed to fetch ${name} from npm registry: ${res.statusText}`);
-	return parseNpmPackage(await res.json());
-}
-//#endregion
 //#region src/semver.ts
 function parseVersion(version) {
 	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
@@ -166,6 +147,12 @@ function parseRange(range) {
 	}
 	return (version) => checks.every((check) => check(version));
 }
+function satisfies(version, range) {
+	const parsed = parseVersion(version);
+	const check = parseRange(range);
+	if (parsed === void 0 || check === void 0) return false;
+	return check(parsed);
+}
 function maxSatisfying(versions, range) {
 	const satisfies = parseRange(range);
 	if (satisfies === void 0) throw new Error(`Unsupported version range: ${range}`);
@@ -179,6 +166,57 @@ function maxSatisfying(versions, range) {
 		};
 	}
 	return max?.version;
+}
+//#endregion
+//#region src/lockfile.ts
+function extractVersionFromPnpmLock(content) {
+	const lines = content.split(/\r?\n/);
+	if (lines[0] !== "---") return void 0;
+	const keys = [
+		"importers:",
+		".:",
+		"packageManagerDependencies:",
+		"'@pnpm/exe':"
+	];
+	let depth = 0;
+	for (const line of lines.slice(1)) {
+		if (line === "---") break;
+		const key = line.trimStart();
+		if (key === "") continue;
+		const indent = line.length - key.length;
+		if (indent < depth * 2) break;
+		if (indent > depth * 2) continue;
+		if (depth < keys.length) {
+			if (key === keys[depth]) depth++;
+			continue;
+		}
+		const match = /^version: (\d+\.\d+\.\d+)$/.exec(key);
+		if (match !== null) return match[1];
+	}
+}
+async function readLockedVersion(file, version) {
+	const lockedVersion = extractVersionFromPnpmLock(await readFile(file, "utf-8"));
+	if (lockedVersion === void 0 || !satisfies(lockedVersion, version)) return;
+	return lockedVersion;
+}
+//#endregion
+//#region src/json.ts
+function isRecord(value) {
+	return typeof value === "object" && value !== null;
+}
+//#endregion
+//#region src/npm.ts
+function parseNpmPackage(data) {
+	if (!isRecord(data) || !isRecord(data["dist-tags"]) || !isRecord(data.versions)) throw new Error("Invalid npm package metadata");
+	return {
+		"dist-tags": data["dist-tags"],
+		versions: data.versions
+	};
+}
+async function fetchNpmPackage(name) {
+	const res = await fetch(`https://registry.npmjs.org/${name}`);
+	if (!res.ok) throw new Error(`Failed to fetch ${name} from npm registry: ${res.statusText}`);
+	return parseNpmPackage(await res.json());
 }
 //#endregion
 //#region src/pnpm.ts
@@ -274,15 +312,18 @@ try {
 	const versionFile = getInput("version-file").trim();
 	if (versionInput !== "" && versionFile !== "") throw new Error("Cannot specify both `version` and `version-file` inputs");
 	let version;
+	let packageJsonFile;
 	if (versionInput !== "") version = versionInput;
 	else if (versionFile !== "") {
 		logInfo(`Read pnpm version from ${versionFile}`);
 		version = await readVersionFile(versionFile);
 		if (version === void 0) throw new Error(`Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`);
+		packageJsonFile = versionFile;
 	} else if (existsSync("package.json")) {
 		logInfo("No version specified, read pnpm version from package.json");
 		try {
 			version = await readVersionFile("package.json");
+			packageJsonFile = "package.json";
 			if (version === void 0) logInfo("No `devEngines.packageManager` or `packageManager` field in package.json, use latest");
 		} catch (err) {
 			logError(err);
@@ -291,6 +332,20 @@ try {
 	} else logInfo("No version specified, use latest");
 	version ??= "latest";
 	let isVersionVerified = false;
+	if (packageJsonFile !== void 0) {
+		const lockfile = join(dirname(packageJsonFile), "pnpm-lock.yaml");
+		if (existsSync(lockfile)) try {
+			const lockedVersion = await readLockedVersion(lockfile, version);
+			if (lockedVersion !== void 0) {
+				version = lockedVersion;
+				isVersionVerified = true;
+				logInfo(`Use pnpm version ${version} locked in ${lockfile}`);
+			}
+		} catch (err) {
+			logError(err);
+			logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
+		}
+	}
 	if (!/^\d+\.\d+\.\d+/.test(version)) {
 		if (/^[<>=~^]/.test(version)) {
 			logInfo(`Resolve pnpm version range ${version} from npm registry`);
