@@ -227,15 +227,35 @@ function getPnpmAsset(version, platform, arch) {
 }
 //#endregion
 //#region src/version.ts
-function extractVersionFromPackageJson(packageJson) {
-	if (!isRecord(packageJson)) throw new Error("Invalid package.json");
-	const { packageManager } = packageJson;
+function extractVersionFromDevEngines(devEngines) {
+	if (devEngines === void 0) return void 0;
+	if (!isRecord(devEngines)) throw new Error(`Invalid \`devEngines\` type: ${typeof devEngines}`);
+	const { packageManager } = devEngines;
+	if (packageManager === void 0) return void 0;
+	if (Array.isArray(packageManager)) throw new Error("Unsupported `devEngines.packageManager` array");
+	if (!isRecord(packageManager)) throw new Error(`Invalid \`devEngines.packageManager\` type: ${typeof packageManager}`);
+	const { name, version } = packageManager;
+	if (name === void 0) return void 0;
+	if (typeof name !== "string") throw new Error(`Invalid \`devEngines.packageManager.name\` type: ${typeof name}`);
+	if (name !== "pnpm") throw new Error(`Unsupported package manager: ${name}, expected pnpm`);
+	if (version === void 0) return "latest";
+	if (typeof version !== "string") throw new Error(`Invalid \`devEngines.packageManager.version\` type: ${typeof version}`);
+	const match = /^(\d+\.\d+\.\d+)(?:\+.*)?$/.exec(version);
+	if (match !== null) return match[1];
+	if (/^[<>=~^]/.test(version)) return version;
+	throw new Error(`Invalid \`devEngines.packageManager.version\` value: ${version}`);
+}
+function extractVersionFromPackageManager(packageManager) {
 	if (packageManager === void 0) return void 0;
 	if (typeof packageManager !== "string") throw new Error(`Invalid \`packageManager\` type: ${typeof packageManager}`);
 	const match = /^([^@]+)@(\d+\.\d+\.\d+)(?:\+.*)?$/.exec(packageManager);
 	if (match === null) throw new Error(`Invalid \`packageManager\` value: ${packageManager}`);
 	if (match[1] !== "pnpm") throw new Error(`Unsupported package manager: ${match[1]}, expected pnpm`);
 	return match[2];
+}
+function extractVersionFromPackageJson(packageJson) {
+	if (!isRecord(packageJson)) throw new Error("Invalid package.json");
+	return extractVersionFromDevEngines(packageJson.devEngines) ?? extractVersionFromPackageManager(packageJson.packageManager);
 }
 async function readVersionFile(file) {
 	const fileName = basename(file);
@@ -258,12 +278,12 @@ try {
 	else if (versionFile !== "") {
 		logInfo(`Read pnpm version from ${versionFile}`);
 		version = await readVersionFile(versionFile);
-		if (version === void 0) throw new Error(`Missing \`packageManager\` field in ${versionFile}`);
+		if (version === void 0) throw new Error(`Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`);
 	} else if (existsSync("package.json")) {
 		logInfo("No version specified, read pnpm version from package.json");
 		try {
 			version = await readVersionFile("package.json");
-			if (version === void 0) logInfo("No `packageManager` field in package.json, use latest");
+			if (version === void 0) logInfo("No `devEngines.packageManager` or `packageManager` field in package.json, use latest");
 		} catch (err) {
 			logError(err);
 			logInfo("Failed to read pnpm version from package.json, use latest");
