@@ -26,20 +26,20 @@ try {
     throw new Error("Cannot specify both `version` and `version-file` inputs");
   }
 
-  let spec: string | undefined;
+  let version: string | undefined;
   if (versionInput !== "") {
-    spec = versionInput;
+    version = versionInput;
   } else if (versionFile !== "") {
     logInfo(`Read pnpm version from ${versionFile}`);
-    spec = await readVersionFile(versionFile);
-    if (spec === undefined) {
+    version = await readVersionFile(versionFile);
+    if (version === undefined) {
       throw new Error(`Missing \`packageManager\` field in ${versionFile}`);
     }
   } else if (existsSync("package.json")) {
     logInfo("No version specified, read pnpm version from package.json");
     try {
-      spec = await readVersionFile("package.json");
-      if (spec === undefined) {
+      version = await readVersionFile("package.json");
+      if (version === undefined) {
         logInfo("No `packageManager` field in package.json, use latest");
       }
     } catch (err) {
@@ -49,23 +49,18 @@ try {
   } else {
     logInfo("No version specified, use latest");
   }
-  spec ??= "latest";
+  version ??= "latest";
 
-  let version: string;
-  if (/^\d+\.\d+\.\d+/.test(spec)) {
-    logInfo(`Verify pnpm version ${spec} from npm registry`);
+  let isVersionVerified = false;
+  if (!/^\d+\.\d+\.\d+/.test(version)) {
+    logInfo(`Resolve pnpm tag ${version} from npm registry`);
     const pkg = await fetchNpmPackage("@pnpm/exe");
-    verifyPnpmVersion(spec, pkg);
-    version = spec;
-  } else {
-    logInfo(`Resolve pnpm tag ${spec} from npm registry`);
-    const pkg = await fetchNpmPackage("@pnpm/exe");
-    version = resolvePnpmTag(spec, pkg);
+    version = resolvePnpmTag(version, pkg);
+    isVersionVerified = true;
     logInfo(`Use pnpm version ${version}`);
   }
 
   const { platform, arch } = process;
-  const asset = getPnpmAsset(version, platform, arch);
   const pnpmHome = join(
     getRunnerToolCache(),
     "pnpm",
@@ -77,6 +72,15 @@ try {
     await access(completeMarker);
     logInfo(`Use cached pnpm from ${pnpmHome}`);
   } catch {
+    // Verifies here rather than up front, since a cached version was already
+    // verified when it was installed.
+    if (!isVersionVerified) {
+      logInfo(`Verify pnpm version ${version} from npm registry`);
+      const pkg = await fetchNpmPackage("@pnpm/exe");
+      verifyPnpmVersion(version, pkg);
+    }
+
+    const asset = getPnpmAsset(version, platform, arch);
     logInfo(`Install pnpm to ${pnpmHome}`);
     // Clears anything left by a previous install that didn't complete.
     await rm(pnpmHome, { recursive: true, force: true });
