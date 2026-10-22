@@ -38,14 +38,18 @@ try {
     logInfo(`Read pnpm version from ${versionFile}`);
     version = await readVersionFile(versionFile);
     if (version === undefined) {
-      throw new Error(`Missing \`packageManager\` field in ${versionFile}`);
+      throw new Error(
+        `Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`,
+      );
     }
   } else if (existsSync("package.json")) {
     logInfo("No version specified, read pnpm version from package.json");
     try {
       version = await readVersionFile("package.json");
       if (version === undefined) {
-        logInfo("No `packageManager` field in package.json, use latest");
+        logInfo(
+          "No `devEngines.packageManager` or `packageManager` field in package.json, use latest",
+        );
       }
     } catch (err) {
       logError(err);

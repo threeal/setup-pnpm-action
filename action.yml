@@ -8,7 +8,7 @@ inputs:
   version:
     description: The version, version range, or tag of pnpm to install.
   version-file:
-    description: A file specifying the version of pnpm to install. Supports package.json with a packageManager field.
+    description: A file specifying the version of pnpm to install. Supports package.json with a devEngines.packageManager or packageManager field.
 outputs:
   version:
     description: The version of pnpm that was installed.
