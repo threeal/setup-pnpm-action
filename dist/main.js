@@ -98,6 +98,89 @@ async function fetchNpmPackage(name) {
 	return parseNpmPackage(await res.json());
 }
 //#endregion
+//#region src/semver.ts
+function parseVersion(version) {
+	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+	if (match === null) return void 0;
+	return [
+		Number(match[1]),
+		Number(match[2]),
+		Number(match[3])
+	];
+}
+function compareVersions(a, b) {
+	return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+function parseRange(range) {
+	const checks = [];
+	for (const comparator of range.trim().split(/\s+/)) {
+		const match = /^([<>]=?|[=~^])?(\d+)\.(\d+)\.(\d+)$/.exec(comparator);
+		if (match === null) return void 0;
+		const base = [
+			Number(match[2]),
+			Number(match[3]),
+			Number(match[4])
+		];
+		const compare = (version) => compareVersions(version, base);
+		switch (match[1]) {
+			case "<":
+				checks.push((version) => compare(version) < 0);
+				break;
+			case "<=":
+				checks.push((version) => compare(version) <= 0);
+				break;
+			case ">":
+				checks.push((version) => compare(version) > 0);
+				break;
+			case ">=":
+				checks.push((version) => compare(version) >= 0);
+				break;
+			case "~": {
+				const upper = [
+					base[0],
+					base[1] + 1,
+					0
+				];
+				checks.push((version) => compare(version) >= 0 && compareVersions(version, upper) < 0);
+				break;
+			}
+			case "^": {
+				const upper = base[0] > 0 ? [
+					base[0] + 1,
+					0,
+					0
+				] : base[1] > 0 ? [
+					0,
+					base[1] + 1,
+					0
+				] : [
+					0,
+					0,
+					base[2] + 1
+				];
+				checks.push((version) => compare(version) >= 0 && compareVersions(version, upper) < 0);
+				break;
+			}
+			default: checks.push((version) => compare(version) === 0);
+		}
+	}
+	return (version) => checks.every((check) => check(version));
+}
+function maxSatisfying(versions, range) {
+	const satisfies = parseRange(range);
+	if (satisfies === void 0) throw new Error(`Unsupported version range: ${range}`);
+	let max;
+	for (const version of versions) {
+		const parsed = parseVersion(version);
+		if (parsed === void 0 || !satisfies(parsed)) continue;
+		if (max === void 0 || compareVersions(parsed, max.parsed) > 0) max = {
+			version,
+			parsed
+		};
+	}
+	return max?.version;
+}
+//#endregion
 //#region src/pnpm.ts
 function verifyPnpmVersion(version, pkg) {
 	if (!Object.hasOwn(pkg.versions, version)) throw new Error(`Unknown pnpm version: ${version}`);
@@ -105,6 +188,11 @@ function verifyPnpmVersion(version, pkg) {
 function resolvePnpmTag(tag, pkg) {
 	const version = pkg["dist-tags"][tag];
 	if (typeof version !== "string") throw new Error(`Unknown pnpm tag: ${tag}`);
+	return version;
+}
+function resolvePnpmRange(range, pkg) {
+	const version = maxSatisfying(Object.keys(pkg.versions), range);
+	if (version === void 0) throw new Error(`No pnpm version satisfies range: ${range}`);
 	return version;
 }
 const OS_NAMES = {
@@ -184,9 +272,15 @@ try {
 	version ??= "latest";
 	let isVersionVerified = false;
 	if (!/^\d+\.\d+\.\d+/.test(version)) {
-		logInfo(`Resolve pnpm tag ${version} from npm registry`);
-		const pkg = await fetchNpmPackage("@pnpm/exe");
-		version = resolvePnpmTag(version, pkg);
+		if (/^[<>=~^]/.test(version)) {
+			logInfo(`Resolve pnpm version range ${version} from npm registry`);
+			const pkg = await fetchNpmPackage("@pnpm/exe");
+			version = resolvePnpmRange(version, pkg);
+		} else {
+			logInfo(`Resolve pnpm tag ${version} from npm registry`);
+			const pkg = await fetchNpmPackage("@pnpm/exe");
+			version = resolvePnpmTag(version, pkg);
+		}
 		isVersionVerified = true;
 		logInfo(`Use pnpm version ${version}`);
 	}

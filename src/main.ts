@@ -6,7 +6,12 @@ import { existsSync } from "node:fs";
 import { access, chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fetchNpmPackage } from "./npm.js";
-import { getPnpmAsset, resolvePnpmTag, verifyPnpmVersion } from "./pnpm.js";
+import {
+  getPnpmAsset,
+  resolvePnpmRange,
+  resolvePnpmTag,
+  verifyPnpmVersion,
+} from "./pnpm.js";
 import { readVersionFile } from "./version.js";
 
 /**
@@ -53,9 +58,17 @@ try {
 
   let isVersionVerified = false;
   if (!/^\d+\.\d+\.\d+/.test(version)) {
-    logInfo(`Resolve pnpm tag ${version} from npm registry`);
-    const pkg = await fetchNpmPackage("@pnpm/exe");
-    version = resolvePnpmTag(version, pkg);
+    // npm rejects tags that are valid version ranges, so a version starting
+    // with a range operator is never a tag.
+    if (/^[<>=~^]/.test(version)) {
+      logInfo(`Resolve pnpm version range ${version} from npm registry`);
+      const pkg = await fetchNpmPackage("@pnpm/exe");
+      version = resolvePnpmRange(version, pkg);
+    } else {
+      logInfo(`Resolve pnpm tag ${version} from npm registry`);
+      const pkg = await fetchNpmPackage("@pnpm/exe");
+      version = resolvePnpmTag(version, pkg);
+    }
     isVersionVerified = true;
     logInfo(`Use pnpm version ${version}`);
   }
