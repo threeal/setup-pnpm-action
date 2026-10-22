@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { access, appendFile, chmod, mkdir, readFile, rm } from "node:fs/promises";
+import { access, appendFile, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { EOL } from "node:os";
 import { basename, delimiter, join } from "node:path";
 //#region node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/exec.js
@@ -197,11 +197,16 @@ try {
 	const { platform, arch } = process;
 	const asset = getPnpmAsset(version, platform, arch);
 	const pnpmHome = join(getRunnerToolCache(), "pnpm", `${version}-${platform}-${arch}`);
+	const completeMarker = join(pnpmHome, ".complete");
 	try {
-		await access(pnpmHome);
+		await access(completeMarker);
 		logInfo(`Use cached pnpm from ${pnpmHome}`);
 	} catch {
 		logInfo(`Install pnpm to ${pnpmHome}`);
+		await rm(pnpmHome, {
+			recursive: true,
+			force: true
+		});
 		await mkdir(pnpmHome, { recursive: true });
 		const file = join(pnpmHome, asset.fileName);
 		await run("curl", [
@@ -233,6 +238,7 @@ try {
 				]);
 				await rm(file);
 		}
+		await writeFile(completeMarker, "");
 	}
 	logInfo("Add pnpm to PATH");
 	await setEnv("PNPM_HOME", pnpmHome);

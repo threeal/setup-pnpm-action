@@ -3,7 +3,7 @@ import { addPath, getInput, setEnv, setOutput } from "ghakit/io";
 import { logCommand, logError, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { existsSync } from "node:fs";
-import { access, chmod, mkdir, rm } from "node:fs/promises";
+import { access, chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fetchNpmPackage } from "./npm.js";
 import { getPnpmAsset, resolvePnpmTag, verifyPnpmVersion } from "./pnpm.js";
@@ -72,11 +72,14 @@ try {
     `${version}-${platform}-${arch}`,
   );
 
+  const completeMarker = join(pnpmHome, ".complete");
   try {
-    await access(pnpmHome);
+    await access(completeMarker);
     logInfo(`Use cached pnpm from ${pnpmHome}`);
   } catch {
     logInfo(`Install pnpm to ${pnpmHome}`);
+    // Clears anything left by a previous install that didn't complete.
+    await rm(pnpmHome, { recursive: true, force: true });
     await mkdir(pnpmHome, { recursive: true });
 
     const file = join(pnpmHome, asset.fileName);
@@ -100,6 +103,8 @@ try {
         await rm(file);
         break;
     }
+
+    await writeFile(completeMarker, "");
   }
 
   logInfo("Add pnpm to PATH");
