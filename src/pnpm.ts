@@ -1,4 +1,5 @@
 import type { NpmPackage } from "./npm.js";
+import { maxSatisfying } from "./semver.js";
 
 /**
  * Verifies that an exact pnpm version is published.
@@ -21,6 +22,20 @@ export function resolvePnpmTag(tag: string, pkg: NpmPackage): string {
   const version = pkg["dist-tags"][tag];
   if (typeof version !== "string") {
     throw new Error(`Unknown pnpm tag: ${tag}`);
+  }
+  return version;
+}
+
+/**
+ * Resolves a pnpm version range to the highest published version satisfying it.
+ * @param range - The version range, such as `^11.0.0`.
+ * @param pkg - The `@pnpm/exe` metadata from the npm registry.
+ * @returns The exact version.
+ */
+export function resolvePnpmRange(range: string, pkg: NpmPackage): string {
+  const version = maxSatisfying(Object.keys(pkg.versions), range);
+  if (version === undefined) {
+    throw new Error(`No pnpm version satisfies range: ${range}`);
   }
   return version;
 }
