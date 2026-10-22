@@ -4,7 +4,8 @@ import { logCommand, logError, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
 import { existsSync } from "node:fs";
 import { access, chmod, mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { readLockedVersion } from "./lockfile.js";
 import { fetchNpmPackage } from "./npm.js";
 import {
   getPnpmAsset,
@@ -32,6 +33,7 @@ try {
   }
 
   let version: string | undefined;
+  let packageJsonFile: string | undefined;
   if (versionInput !== "") {
     version = versionInput;
   } else if (versionFile !== "") {
@@ -42,10 +44,12 @@ try {
         `Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`,
       );
     }
+    packageJsonFile = versionFile;
   } else if (existsSync("package.json")) {
     logInfo("No version specified, read pnpm version from package.json");
     try {
       version = await readVersionFile("package.json");
+      packageJsonFile = "package.json";
       if (version === undefined) {
         logInfo(
           "No `devEngines.packageManager` or `packageManager` field in package.json, use latest",
@@ -61,6 +65,25 @@ try {
   version ??= "latest";
 
   let isVersionVerified = false;
+  if (packageJsonFile !== undefined) {
+    const lockfile = join(dirname(packageJsonFile), "pnpm-lock.yaml");
+    if (existsSync(lockfile)) {
+      try {
+        const lockedVersion = await readLockedVersion(lockfile, version);
+        if (lockedVersion !== undefined) {
+          version = lockedVersion;
+          // Trusts the lockfile, since pnpm resolved the version it locks from
+          // the npm registry.
+          isVersionVerified = true;
+          logInfo(`Use pnpm version ${version} locked in ${lockfile}`);
+        }
+      } catch (err) {
+        logError(err);
+        logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
+      }
+    }
+  }
+
   if (!/^\d+\.\d+\.\d+/.test(version)) {
     // npm rejects tags that are valid version ranges, so a version starting
     // with a range operator is never a tag.

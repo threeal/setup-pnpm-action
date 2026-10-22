@@ -1,5 +1,21 @@
 import { describe, expect, test } from "vitest";
-import { maxSatisfying } from "./semver.js";
+import { maxSatisfying, satisfies } from "./semver.js";
+
+describe("satisfies", () => {
+  test.each([
+    { version: "10.34.0", range: "10.34.0", expected: true },
+    { version: "10.34.5", range: "^10.34.0", expected: true },
+    { version: "10.35.0", range: "~10.34.0", expected: false },
+    { version: "11.0.0", range: ">=10.0.0 <11.0.0", expected: false },
+    { version: "11.0.0-rc.0", range: ">=10.0.0", expected: false },
+    { version: "11.0.0", range: "latest", expected: false },
+  ])(
+    "checks whether $version satisfies $range",
+    ({ version, range, expected }) => {
+      expect(satisfies(version, range)).toBe(expected);
+    },
+  );
+});
 
 describe("maxSatisfying", () => {
   const versions = [

@@ -136,3 +136,24 @@ jobs:
           echo "$version"
           test "$version" = "9.15.0"
           test "$version" = "${{ steps.setup-pnpm-cached-package-json.outputs.version }}"
+
+      - name: Write package.json and pnpm-lock.yaml
+        shell: bash
+        run: |
+          echo '{"devEngines":{"packageManager":{"name":"pnpm","version":"^9.0.0"}}}' > package.json
+          printf '%s\n' --- "lockfileVersion: '9.0'" "" "importers:" "" "  .:" "    packageManagerDependencies:" "      '@pnpm/exe':" "        specifier: ^9.0.0" "        version: 9.15.0" > pnpm-lock.yaml
+
+      - name: Setup pnpm with pnpm-lock.yaml
+        id: setup-pnpm-lockfile
+        uses: ./setup-pnpm-action
+
+      - name: Verify pnpm version
+        # TODO: pnpm v10 and below verification keeps failing on Windows arm64 runners
+        if: matrix.os != 'windows-11-arm'
+        shell: bash
+        run: |
+          rm package.json pnpm-lock.yaml
+          version="$(pnpm --version)"
+          echo "$version"
+          test "$version" = "9.15.0"
+          test "$version" = "${{ steps.setup-pnpm-lockfile.outputs.version }}"
