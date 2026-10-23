@@ -13,16 +13,13 @@ const LOCKFILE = [
   "        specifier: 1.0.0",
   "        version: 1.0.0",
   "    packageManagerDependencies:",
-  "      '@pnpm/exe':",
-  "        specifier: ^11.0.0",
-  "        version: 11.25.0",
   "      pnpm:",
-  "        specifier: ^11.0.0",
-  "        version: 11.25.0",
+  "        specifier: ^12.0.0",
+  "        version: 12.15.0",
   "",
   "packages:",
   "",
-  "  '@pnpm/exe@11.25.0':",
+  "  pnpm@12.15.0:",
   "    hasBin: true",
   "",
   "---",
@@ -32,13 +29,29 @@ const LOCKFILE = [
 
 describe("extractVersionFromPnpmLock", () => {
   test("returns the locked version", () => {
-    expect(extractVersionFromPnpmLock(LOCKFILE)).toBe("11.25.0");
+    expect(extractVersionFromPnpmLock(LOCKFILE)).toBe("12.15.0");
   });
 
   test("returns the locked version with CRLF line endings", () => {
     expect(extractVersionFromPnpmLock(LOCKFILE.replaceAll("\n", "\r\n"))).toBe(
-      "11.25.0",
+      "12.15.0",
     );
+  });
+
+  test("returns the locked version alongside an `@pnpm/exe` entry", () => {
+    expect(
+      extractVersionFromPnpmLock(
+        LOCKFILE.replace(
+          "      pnpm:",
+          [
+            "      '@pnpm/exe':",
+            "        specifier: ^12.0.0",
+            "        version: 12.14.0",
+            "      pnpm:",
+          ].join("\n"),
+        ),
+      ),
+    ).toBe("12.15.0");
   });
 
   test("returns undefined without a package manager document", () => {
@@ -55,16 +68,18 @@ describe("extractVersionFromPnpmLock", () => {
     ).toBeUndefined();
   });
 
-  test("returns undefined without an `@pnpm/exe` entry", () => {
+  test("returns undefined with only an `@pnpm/exe` entry", () => {
     expect(
-      extractVersionFromPnpmLock(LOCKFILE.replace("'@pnpm/exe':", "other:")),
+      extractVersionFromPnpmLock(
+        LOCKFILE.replace("      pnpm:", "      '@pnpm/exe':"),
+      ),
     ).toBeUndefined();
   });
 
   test("returns undefined for a version that isn't exact", () => {
     expect(
       extractVersionFromPnpmLock(
-        LOCKFILE.replace("version: 11.25.0", "version: 11.25.0-rc.0"),
+        LOCKFILE.replace("version: 12.15.0", "version: 12.15.0-rc.0"),
       ),
     ).toBeUndefined();
   });

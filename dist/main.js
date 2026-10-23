@@ -90,7 +90,7 @@ function extractVersionFromPnpmLock(content) {
 		"importers:",
 		".:",
 		"packageManagerDependencies:",
-		"'@pnpm/exe':"
+		"pnpm:"
 	];
 	let depth = 0;
 	for (const line of lines.slice(1)) {
