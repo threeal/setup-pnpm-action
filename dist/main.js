@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 import { access, appendFile, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { EOL } from "node:os";
 import { basename, delimiter, dirname, join } from "node:path";
@@ -74,6 +73,53 @@ function logError(err, options) {
 function logCommand(command, ...args) {
 	const message = [command, ...args].join(" ");
 	process.stdout.write(`[command]${message}${EOL}`);
+}
+// src/json.ts
+function isRecord(value) {
+	return typeof value === "object" && value !== null;
+}
+// src/fs.ts
+function isNotFoundError(err) {
+	return isRecord(err) && err.code === "ENOENT";
+}
+// src/lockfile.ts
+function extractVersionFromPnpmLock(content) {
+	const lines = content.split(/\r?\n/);
+	if (lines[0] !== "---") return void 0;
+	const keys = [
+		"importers:",
+		".:",
+		"packageManagerDependencies:",
+		"'@pnpm/exe':"
+	];
+	let depth = 0;
+	for (const line of lines.slice(1)) {
+		if (line === "---") break;
+		const key = line.trimStart();
+		if (key === "") continue;
+		const indent = line.length - key.length;
+		if (indent < depth * 2) break;
+		if (indent > depth * 2) continue;
+		if (depth < keys.length) {
+			if (key === keys[depth]) depth++;
+			continue;
+		}
+		const match = /^version: (\d+\.\d+\.\d+)$/.exec(key);
+		if (match !== null) return match[1];
+	}
+}
+// src/npm.ts
+function parseNpmPackage(data) {
+	if (!isRecord(data) || !isRecord(data["dist-tags"]) || !isRecord(data.versions)) throw new Error("Invalid npm package metadata");
+	return {
+		"dist-tags": data["dist-tags"],
+		versions: data.versions
+	};
+}
+async function fetchNpmPackage(name) {
+	const res = await fetch(`https://registry.npmjs.org/${name}`);
+	if (!res.ok) throw new Error(`Failed to fetch ${name} from npm registry: ${res.statusText}`);
+	return parseNpmPackage(await res.json());
 }
 // src/semver.ts
 function parseVersion(version) {
@@ -163,54 +209,6 @@ function maxSatisfying(versions, range) {
 	}
 	return max?.version;
 }
-// src/lockfile.ts
-function extractVersionFromPnpmLock(content) {
-	const lines = content.split(/\r?\n/);
-	if (lines[0] !== "---") return void 0;
-	const keys = [
-		"importers:",
-		".:",
-		"packageManagerDependencies:",
-		"'@pnpm/exe':"
-	];
-	let depth = 0;
-	for (const line of lines.slice(1)) {
-		if (line === "---") break;
-		const key = line.trimStart();
-		if (key === "") continue;
-		const indent = line.length - key.length;
-		if (indent < depth * 2) break;
-		if (indent > depth * 2) continue;
-		if (depth < keys.length) {
-			if (key === keys[depth]) depth++;
-			continue;
-		}
-		const match = /^version: (\d+\.\d+\.\d+)$/.exec(key);
-		if (match !== null) return match[1];
-	}
-}
-async function readLockedVersion(file, version) {
-	const lockedVersion = extractVersionFromPnpmLock(await readFile(file, "utf-8"));
-	if (lockedVersion === void 0 || !satisfies(lockedVersion, version)) return;
-	return lockedVersion;
-}
-// src/json.ts
-function isRecord(value) {
-	return typeof value === "object" && value !== null;
-}
-// src/npm.ts
-function parseNpmPackage(data) {
-	if (!isRecord(data) || !isRecord(data["dist-tags"]) || !isRecord(data.versions)) throw new Error("Invalid npm package metadata");
-	return {
-		"dist-tags": data["dist-tags"],
-		versions: data.versions
-	};
-}
-async function fetchNpmPackage(name) {
-	const res = await fetch(`https://registry.npmjs.org/${name}`);
-	if (!res.ok) throw new Error(`Failed to fetch ${name} from npm registry: ${res.statusText}`);
-	return parseNpmPackage(await res.json());
-}
 // src/pnpm.ts
 function verifyPnpmVersion(version, pkg) {
 	if (!Object.hasOwn(pkg.versions, version)) throw new Error(`Unknown pnpm version: ${version}`);
@@ -267,11 +265,18 @@ function extractVersionFromDevEngines(devEngines) {
 	if (name === void 0) return void 0;
 	if (typeof name !== "string") throw new Error(`Invalid \`devEngines.packageManager.name\` type: ${typeof name}`);
 	if (name !== "pnpm") throw new Error(`Unsupported package manager: ${name}, expected pnpm`);
-	if (version === void 0) return "latest";
+	const key = "devEngines.packageManager";
+	if (version === void 0) return { key };
 	if (typeof version !== "string") throw new Error(`Invalid \`devEngines.packageManager.version\` type: ${typeof version}`);
 	const match = /^(\d+\.\d+\.\d+)(?:\+.*)?$/.exec(version);
-	if (match !== null) return match[1];
-	if (/^[<>=~^]/.test(version)) return version;
+	if (match !== null) return {
+		key,
+		version: match[1]
+	};
+	if (/^[<>=~^]/.test(version)) return {
+		key,
+		version
+	};
 	throw new Error(`Invalid \`devEngines.packageManager.version\` value: ${version}`);
 }
 function extractVersionFromPackageManager(packageManager) {
@@ -280,7 +285,10 @@ function extractVersionFromPackageManager(packageManager) {
 	const match = /^([^@]+)@(\d+\.\d+\.\d+)(?:\+.*)?$/.exec(packageManager);
 	if (match === null) throw new Error(`Invalid \`packageManager\` value: ${packageManager}`);
 	if (match[1] !== "pnpm") throw new Error(`Unsupported package manager: ${match[1]}, expected pnpm`);
-	return match[2];
+	return {
+		key: "packageManager",
+		version: match[2]
+	};
 }
 function extractVersionFromPackageJson(packageJson) {
 	if (!isRecord(packageJson)) throw new Error("Invalid package.json");
@@ -298,42 +306,64 @@ async function run(command, args) {
 	await exec(command, args);
 }
 try {
-	const versionInput = getInput("version").trim();
-	const versionFile = getInput("version-file").trim();
-	if (versionInput !== "" && versionFile !== "") throw new Error("Cannot specify both `version` and `version-file` inputs");
-	let version;
-	let packageJsonFile;
-	if (versionInput !== "") version = versionInput;
-	else if (versionFile !== "") {
-		logInfo(`Read pnpm version from ${versionFile}`);
-		version = await readVersionFile(versionFile);
-		if (version === void 0) throw new Error(`Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`);
-		packageJsonFile = versionFile;
-	} else if (existsSync("package.json")) {
-		logInfo("No version specified, read pnpm version from package.json");
-		try {
-			version = await readVersionFile("package.json");
-			packageJsonFile = "package.json";
-			if (version === void 0) logInfo("No `devEngines.packageManager` or `packageManager` field in package.json, use latest");
-		} catch (err) {
-			logError(err);
-			logInfo("Failed to read pnpm version from package.json, use latest");
-		}
-	} else logInfo("No version specified, use latest");
-	version ??= "latest";
+	let version = getInput("version").trim();
+	let versionFile = getInput("version-file").trim();
+	if (version !== "" && versionFile !== "") throw new Error("Cannot specify both `version` and `version-file` inputs");
 	let isVersionVerified = false;
-	if (packageJsonFile !== void 0) {
-		const lockfile = join(dirname(packageJsonFile), "pnpm-lock.yaml");
-		if (existsSync(lockfile)) try {
-			const lockedVersion = await readLockedVersion(lockfile, version);
-			if (lockedVersion !== void 0) {
-				version = lockedVersion;
-				isVersionVerified = true;
-				logInfo(`Use pnpm version ${version} locked in ${lockfile}`);
+	if (version === "") {
+		let versionField;
+		if (versionFile !== "") {
+			logInfo(`Read pnpm version from ${versionFile}`);
+			versionField = await readVersionFile(versionFile);
+			if (versionField === void 0) throw new Error(`Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`);
+		} else {
+			versionFile = "package.json";
+			logInfo(`No version specified, read pnpm version from ${versionFile}`);
+			try {
+				versionField = await readVersionFile(versionFile);
+				if (versionField === void 0) {
+					logInfo(`No \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}, use latest`);
+					version = "latest";
+				}
+			} catch (err) {
+				if (isNotFoundError(err)) {
+					logInfo(`No ${versionFile} found, use latest`);
+					version = "latest";
+				} else {
+					logError(err);
+					logInfo(`Failed to read pnpm version from ${versionFile}, use latest`);
+					version = "latest";
+				}
 			}
-		} catch (err) {
-			logError(err);
-			logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
+		}
+		if (versionField !== void 0) {
+			if (versionField.version === void 0) {
+				logInfo(`No version in the \`${versionField.key}\` field of ${versionFile}, use latest`);
+				version = "latest";
+			} else {
+				logInfo(`Found pnpm version ${versionField.version} in the \`${versionField.key}\` field of ${versionFile}`);
+				version = versionField.version;
+				if (versionField.key === "devEngines.packageManager") {
+					const lockfile = join(dirname(versionFile), "pnpm-lock.yaml");
+					logInfo(`Read pnpm version from ${lockfile}`);
+					try {
+						const lockedVersion = extractVersionFromPnpmLock(await readFile(lockfile, "utf-8"));
+						if (lockedVersion === void 0) logInfo(`No pnpm version in ${lockfile}, ignore it`);
+						else if (!satisfies(lockedVersion, version)) logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}, which doesn't satisfy ${version}, ignore it`);
+						else {
+							logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}`);
+							version = lockedVersion;
+							isVersionVerified = true;
+						}
+					} catch (err) {
+						if (isNotFoundError(err)) logInfo(`No ${lockfile} found, ignore it`);
+						else {
+							logError(err);
+							logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
+						}
+					}
+				}
+			}
 		}
 	}
 	if (!/^\d+\.\d+\.\d+/.test(version)) {
@@ -341,13 +371,14 @@ try {
 			logInfo(`Resolve pnpm version range ${version} from npm registry`);
 			const pkg = await fetchNpmPackage("@pnpm/exe");
 			version = resolvePnpmRange(version, pkg);
+			logInfo(`Found pnpm version ${version} in npm registry`);
 		} else {
 			logInfo(`Resolve pnpm tag ${version} from npm registry`);
 			const pkg = await fetchNpmPackage("@pnpm/exe");
 			version = resolvePnpmTag(version, pkg);
+			logInfo(`Found pnpm version ${version} in npm registry`);
 		}
 		isVersionVerified = true;
-		logInfo(`Use pnpm version ${version}`);
 	}
 	const { platform, arch } = process;
 	const pnpmHome = join(getRunnerToolCache(), "pnpm", `${version}-${platform}-${arch}`);

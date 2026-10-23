@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { satisfies } from "./semver.js";
-
 /**
  * Extracts the locked pnpm version from the contents of a `pnpm-lock.yaml`.
  *
@@ -47,28 +44,4 @@ export function extractVersionFromPnpmLock(
     if (match !== null) return match[1];
   }
   return undefined;
-}
-
-/**
- * Reads the locked pnpm version from a `pnpm-lock.yaml`.
- *
- * Like pnpm itself, this only uses the locked version if it satisfies the
- * version from `package.json`, so `latest` never uses it. Throws an error if
- * the file can't be read.
- * @param file - The path of the `pnpm-lock.yaml` file.
- * @param version - The exact pnpm version, the version range, or `latest` from
- * `package.json`.
- * @returns The exact locked version, or `undefined` if the lockfile doesn't
- * lock one that satisfies the version.
- */
-export async function readLockedVersion(
-  file: string,
-  version: string,
-): Promise<string | undefined> {
-  const content = await readFile(file, "utf-8");
-  const lockedVersion = extractVersionFromPnpmLock(content);
-  if (lockedVersion === undefined || !satisfies(lockedVersion, version)) {
-    return undefined;
-  }
-  return lockedVersion;
 }
