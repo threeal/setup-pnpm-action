@@ -87,35 +87,31 @@ try {
           `Found pnpm version ${versionField.version} in the \`${versionField.key}\` field of ${versionFile}`,
         );
         version = versionField.version;
-        // pnpm only locks its own version for `devEngines.packageManager`.
-        if (versionField.key === "devEngines.packageManager") {
-          const lockfile = join(dirname(versionFile), "pnpm-lock.yaml");
-          logInfo(`Read pnpm version from ${lockfile}`);
-          try {
-            const content = await readFile(lockfile, "utf-8");
-            const lockedVersion = extractVersionFromPnpmLock(content);
-            if (lockedVersion === undefined) {
-              logInfo(`No pnpm version in ${lockfile}, ignore it`);
-            } else if (!satisfies(lockedVersion, version)) {
-              logInfo(
-                `Found pnpm version ${lockedVersion} in ${lockfile}, which doesn't satisfy ${version}, ignore it`,
-              );
-            } else {
-              logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}`);
-              version = lockedVersion;
-              // Trusts the lockfile, since pnpm resolved the version it locks
-              // from the npm registry.
-              isVersionVerified = true;
-            }
-          } catch (err) {
-            if (isNotFoundError(err)) {
-              logInfo(`No ${lockfile} found, ignore it`);
-            } else {
-              logError(err);
-              logInfo(
-                `Failed to read pnpm version from ${lockfile}, ignore it`,
-              );
-            }
+
+        const lockfile = join(dirname(versionFile), "pnpm-lock.yaml");
+        logInfo(`Read pnpm version from ${lockfile}`);
+        try {
+          const content = await readFile(lockfile, "utf-8");
+          const lockedVersion = extractVersionFromPnpmLock(content);
+          if (lockedVersion === undefined) {
+            logInfo(`No pnpm version in ${lockfile}, ignore it`);
+          } else if (!satisfies(lockedVersion, version)) {
+            logInfo(
+              `Found pnpm version ${lockedVersion} in ${lockfile}, which doesn't satisfy ${version}, ignore it`,
+            );
+          } else {
+            logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}`);
+            version = lockedVersion;
+            // Trusts the lockfile, since pnpm resolved the version it locks
+            // from the npm registry.
+            isVersionVerified = true;
+          }
+        } catch (err) {
+          if (isNotFoundError(err)) {
+            logInfo(`No ${lockfile} found, ignore it`);
+          } else {
+            logError(err);
+            logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
           }
         }
       }
