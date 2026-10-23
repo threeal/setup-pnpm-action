@@ -60,7 +60,8 @@ const OS_NAMES = { linux: "linux", darwin: "macos", win32: "win" } as const;
  *
  * pnpm 10 and below are released as standalone executables named with their
  * own OS names, while pnpm 11 and above are released as archives named with
- * the platform names from Node.js, with no build for x64 macOS.
+ * the platform names from Node.js. Not every release has a build for every
+ * platform and architecture, such as x64 macOS in later pnpm 11 releases.
  * @param version - The exact pnpm version.
  * @param platform - The runner's platform, as named by Node.js.
  * @param arch - The runner's architecture, as named by Node.js.
@@ -86,12 +87,6 @@ export function getPnpmAsset(
     return platform === "win32"
       ? { type: "exe", url: `${baseUrl}/${name}.exe`, fileName: "pnpm.exe" }
       : { type: "binary", url: `${baseUrl}/${name}`, fileName: "pnpm" };
-  }
-
-  if (platform === "darwin" && arch === "x64") {
-    throw new Error(
-      "pnpm does not provide x64 macOS binaries for version 11 and above",
-    );
   }
 
   const type = platform === "win32" ? "zip" : "tar.gz";
