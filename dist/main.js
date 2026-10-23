@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { access, appendFile, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { EOL } from "node:os";
 import { basename, delimiter, dirname, join } from "node:path";
-//#region node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/exec.js
+// node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/exec.js
 function exec(command, args, opts) {
 	return new Promise((resolve, reject) => {
 		const stdoutMode = opts?.stdout ?? "inherit";
@@ -30,8 +30,7 @@ function exec(command, args, opts) {
 		});
 	});
 }
-//#endregion
-//#region node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/vars.js
+// node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/vars.js
 function getGitHubEnv() {
 	return process.env.GITHUB_ENV ?? "";
 }
@@ -44,8 +43,7 @@ function getGitHubPath() {
 function getRunnerToolCache() {
 	return process.env.RUNNER_TOOL_CACHE ?? "";
 }
-//#endregion
-//#region node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/io.js
+// node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/io.js
 function getInput(name) {
 	return process.env[`INPUT_${name.toUpperCase()}`] ?? "";
 }
@@ -60,8 +58,7 @@ async function addPath(sysPath) {
 	process.env.PATH = process.env.PATH !== void 0 ? `${sysPath}${delimiter}${process.env.PATH}` : sysPath;
 	await appendFile(getGitHubPath(), `${sysPath}${EOL}`);
 }
-//#endregion
-//#region node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/log.js
+// node_modules/.pnpm/ghakit@1.0.0/node_modules/ghakit/dist/log.js
 function logInfo(message) {
 	process.stdout.write(`${message}${EOL}`);
 }
@@ -78,8 +75,7 @@ function logCommand(command, ...args) {
 	const message = [command, ...args].join(" ");
 	process.stdout.write(`[command]${message}${EOL}`);
 }
-//#endregion
-//#region src/semver.ts
+// src/semver.ts
 function parseVersion(version) {
 	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
 	if (match === null) return void 0;
@@ -167,8 +163,7 @@ function maxSatisfying(versions, range) {
 	}
 	return max?.version;
 }
-//#endregion
-//#region src/lockfile.ts
+// src/lockfile.ts
 function extractVersionFromPnpmLock(content) {
 	const lines = content.split(/\r?\n/);
 	if (lines[0] !== "---") return void 0;
@@ -199,13 +194,11 @@ async function readLockedVersion(file, version) {
 	if (lockedVersion === void 0 || !satisfies(lockedVersion, version)) return;
 	return lockedVersion;
 }
-//#endregion
-//#region src/json.ts
+// src/json.ts
 function isRecord(value) {
 	return typeof value === "object" && value !== null;
 }
-//#endregion
-//#region src/npm.ts
+// src/npm.ts
 function parseNpmPackage(data) {
 	if (!isRecord(data) || !isRecord(data["dist-tags"]) || !isRecord(data.versions)) throw new Error("Invalid npm package metadata");
 	return {
@@ -218,8 +211,7 @@ async function fetchNpmPackage(name) {
 	if (!res.ok) throw new Error(`Failed to fetch ${name} from npm registry: ${res.statusText}`);
 	return parseNpmPackage(await res.json());
 }
-//#endregion
-//#region src/pnpm.ts
+// src/pnpm.ts
 function verifyPnpmVersion(version, pkg) {
 	if (!Object.hasOwn(pkg.versions, version)) throw new Error(`Unknown pnpm version: ${version}`);
 }
@@ -263,8 +255,7 @@ function getPnpmAsset(version, platform, arch) {
 		fileName
 	};
 }
-//#endregion
-//#region src/version.ts
+// src/version.ts
 function extractVersionFromDevEngines(devEngines) {
 	if (devEngines === void 0) return void 0;
 	if (!isRecord(devEngines)) throw new Error(`Invalid \`devEngines\` type: ${typeof devEngines}`);
@@ -301,8 +292,7 @@ async function readVersionFile(file) {
 	const content = await readFile(file, "utf-8");
 	return extractVersionFromPackageJson(JSON.parse(content));
 }
-//#endregion
-//#region src/main.ts
+// src/main.ts
 async function run(command, args) {
 	logCommand(command, ...args);
 	await exec(command, args);
@@ -418,5 +408,4 @@ try {
 	logError(err);
 	process.exitCode = 1;
 }
-//#endregion
 export {};
