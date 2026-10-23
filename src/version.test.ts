@@ -17,7 +17,7 @@ describe("extractVersionFromPackageJson", () => {
         extractVersionFromPackageJson({
           devEngines: { packageManager: { name: "pnpm", version: "11.5.0" } },
         }),
-      ).toBe("11.5.0");
+      ).toEqual({ key: "devEngines.packageManager", version: "11.5.0" });
     });
 
     test("returns the version when build metadata is present", () => {
@@ -27,7 +27,7 @@ describe("extractVersionFromPackageJson", () => {
             packageManager: { name: "pnpm", version: "11.5.0+sha256.abc123" },
           },
         }),
-      ).toBe("11.5.0");
+      ).toEqual({ key: "devEngines.packageManager", version: "11.5.0" });
     });
 
     test("returns the version range", () => {
@@ -37,15 +37,18 @@ describe("extractVersionFromPackageJson", () => {
             packageManager: { name: "pnpm", version: ">=10.0.0 <12.0.0" },
           },
         }),
-      ).toBe(">=10.0.0 <12.0.0");
+      ).toEqual({
+        key: "devEngines.packageManager",
+        version: ">=10.0.0 <12.0.0",
+      });
     });
 
-    test("returns latest without a version", () => {
+    test("returns no version without a version", () => {
       expect(
         extractVersionFromPackageJson({
           devEngines: { packageManager: { name: "pnpm" } },
         }),
-      ).toBe("latest");
+      ).toEqual({ key: "devEngines.packageManager" });
     });
 
     test("throws for a `devEngines` value that isn't an object", () => {
@@ -109,7 +112,7 @@ describe("extractVersionFromPackageJson", () => {
     test("returns the version", () => {
       expect(
         extractVersionFromPackageJson({ packageManager: "pnpm@11.5.0" }),
-      ).toBe("11.5.0");
+      ).toEqual({ key: "packageManager", version: "11.5.0" });
     });
 
     test("returns the version when build metadata is present", () => {
@@ -117,7 +120,7 @@ describe("extractVersionFromPackageJson", () => {
         extractVersionFromPackageJson({
           packageManager: "pnpm@11.5.0+sha256.abc123",
         }),
-      ).toBe("11.5.0");
+      ).toEqual({ key: "packageManager", version: "11.5.0" });
     });
 
     test("throws for a `packageManager` value that isn't a string", () => {
@@ -145,7 +148,7 @@ describe("extractVersionFromPackageJson", () => {
         devEngines: { packageManager: { name: "pnpm", version: "11.5.0" } },
         packageManager: "pnpm@10.34.0",
       }),
-    ).toBe("11.5.0");
+    ).toEqual({ key: "devEngines.packageManager", version: "11.5.0" });
   });
 
   test("falls back to `packageManager` when `devEngines` has no package manager", () => {
@@ -154,7 +157,7 @@ describe("extractVersionFromPackageJson", () => {
         devEngines: {},
         packageManager: "pnpm@10.34.0",
       }),
-    ).toBe("10.34.0");
+    ).toEqual({ key: "packageManager", version: "10.34.0" });
   });
 
   test("falls back to `packageManager` when the `devEngines` package manager has no name", () => {
@@ -163,7 +166,7 @@ describe("extractVersionFromPackageJson", () => {
         devEngines: { packageManager: { version: "11.5.0" } },
         packageManager: "pnpm@10.34.0",
       }),
-    ).toBe("10.34.0");
+    ).toEqual({ key: "packageManager", version: "10.34.0" });
   });
 
   test("returns undefined without a `devEngines` or `packageManager` field", () => {
@@ -183,7 +186,10 @@ describe("readVersionFile", { concurrent: true }, () => {
   test("reads the version from package.json", async () => {
     const file = join(tmpDir, "package.json");
     await writeFile(file, JSON.stringify({ packageManager: "pnpm@11.5.0" }));
-    await expect(readVersionFile(file)).resolves.toBe("11.5.0");
+    await expect(readVersionFile(file)).resolves.toEqual({
+      key: "packageManager",
+      version: "11.5.0",
+    });
   });
 
   test("returns undefined when package.json sets no version", async () => {

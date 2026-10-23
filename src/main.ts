@@ -2,10 +2,17 @@ import { exec } from "ghakit/exec";
 import { addPath, getInput, setEnv, setOutput } from "ghakit/io";
 import { logCommand, logError, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
-import { access, chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { isNotFoundError } from "./fs.js";
-import { readLockedVersion } from "./lockfile.js";
+import { extractVersionFromPnpmLock } from "./lockfile.js";
 import { fetchNpmPackage } from "./npm.js";
 import {
   getPnpmAsset,
@@ -13,7 +20,8 @@ import {
   resolvePnpmTag,
   verifyPnpmVersion,
 } from "./pnpm.js";
-import { readVersionFile } from "./version.js";
+import { satisfies } from "./semver.js";
+import { readVersionFile, type VersionField } from "./version.js";
 
 /**
  * Logs a command and then runs it.
@@ -26,61 +34,91 @@ async function run(command: string, args: string[]): Promise<void> {
 }
 
 try {
-  const versionInput = getInput("version").trim();
-  const versionFile = getInput("version-file").trim();
-  if (versionInput !== "" && versionFile !== "") {
+  let version = getInput("version").trim();
+  let versionFile = getInput("version-file").trim();
+  if (version !== "" && versionFile !== "") {
     throw new Error("Cannot specify both `version` and `version-file` inputs");
   }
 
-  let version: string | undefined;
-  let packageJsonFile: string | undefined;
-  if (versionInput !== "") {
-    version = versionInput;
-  } else if (versionFile !== "") {
-    logInfo(`Read pnpm version from ${versionFile}`);
-    version = await readVersionFile(versionFile);
-    if (version === undefined) {
-      throw new Error(
-        `Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`,
-      );
-    }
-    packageJsonFile = versionFile;
-  } else {
-    logInfo("No version specified, read pnpm version from package.json");
-    try {
-      version = await readVersionFile("package.json");
-      packageJsonFile = "package.json";
-      if (version === undefined) {
-        logInfo(
-          "No `devEngines.packageManager` or `packageManager` field in package.json, use latest",
+  let isVersionVerified = false;
+  if (version === "") {
+    let versionField: VersionField | undefined;
+    if (versionFile !== "") {
+      logInfo(`Read pnpm version from ${versionFile}`);
+      versionField = await readVersionFile(versionFile);
+      if (versionField === undefined) {
+        throw new Error(
+          `Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`,
         );
       }
-    } catch (err) {
-      if (isNotFoundError(err)) {
-        logInfo("No package.json found, use latest");
-      } else {
-        logError(err);
-        logInfo("Failed to read pnpm version from package.json, use latest");
+    } else {
+      versionFile = "package.json";
+      logInfo(`No version specified, read pnpm version from ${versionFile}`);
+      try {
+        versionField = await readVersionFile(versionFile);
+        if (versionField === undefined) {
+          logInfo(
+            `No \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}, use latest`,
+          );
+          version = "latest";
+        }
+      } catch (err) {
+        if (isNotFoundError(err)) {
+          logInfo(`No ${versionFile} found, use latest`);
+          version = "latest";
+        } else {
+          logError(err);
+          logInfo(
+            `Failed to read pnpm version from ${versionFile}, use latest`,
+          );
+          version = "latest";
+        }
       }
     }
-  }
-  version ??= "latest";
 
-  let isVersionVerified = false;
-  if (packageJsonFile !== undefined) {
-    const lockfile = join(dirname(packageJsonFile), "pnpm-lock.yaml");
-    try {
-      const lockedVersion = await readLockedVersion(lockfile, version);
-      if (lockedVersion !== undefined) {
-        version = lockedVersion;
-        // Trusts the lockfile, since pnpm resolved the version it locks from
-        // the npm registry.
-        isVersionVerified = true;
-        logInfo(`Use pnpm version ${version} locked in ${lockfile}`);
+    if (versionField !== undefined) {
+      if (versionField.version === undefined) {
+        logInfo(
+          `No version in the \`${versionField.key}\` field of ${versionFile}, use latest`,
+        );
+        version = "latest";
+      } else {
+        logInfo(
+          `Found pnpm version ${versionField.version} in the \`${versionField.key}\` field of ${versionFile}`,
+        );
+        version = versionField.version;
+        // pnpm only locks its own version for `devEngines.packageManager`.
+        if (versionField.key === "devEngines.packageManager") {
+          const lockfile = join(dirname(versionFile), "pnpm-lock.yaml");
+          logInfo(`Read pnpm version from ${lockfile}`);
+          try {
+            const content = await readFile(lockfile, "utf-8");
+            const lockedVersion = extractVersionFromPnpmLock(content);
+            if (lockedVersion === undefined) {
+              logInfo(`No pnpm version in ${lockfile}, ignore it`);
+            } else if (!satisfies(lockedVersion, version)) {
+              logInfo(
+                `Found pnpm version ${lockedVersion} in ${lockfile}, which doesn't satisfy ${version}, ignore it`,
+              );
+            } else {
+              logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}`);
+              version = lockedVersion;
+              // Trusts the lockfile, since pnpm resolved the version it locks
+              // from the npm registry.
+              isVersionVerified = true;
+            }
+          } catch (err) {
+            if (isNotFoundError(err)) {
+              logInfo(`No ${lockfile} found, ignore it`);
+            } else {
+              logError(err);
+              logInfo(
+                `Failed to read pnpm version from ${lockfile}, ignore it`,
+              );
+            }
+          }
+        }
       }
-    } catch (err) {
-      logError(err);
-      logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
     }
   }
 
@@ -91,13 +129,14 @@ try {
       logInfo(`Resolve pnpm version range ${version} from npm registry`);
       const pkg = await fetchNpmPackage("@pnpm/exe");
       version = resolvePnpmRange(version, pkg);
+      logInfo(`Found pnpm version ${version} in npm registry`);
     } else {
       logInfo(`Resolve pnpm tag ${version} from npm registry`);
       const pkg = await fetchNpmPackage("@pnpm/exe");
       version = resolvePnpmTag(version, pkg);
+      logInfo(`Found pnpm version ${version} in npm registry`);
     }
     isVersionVerified = true;
-    logInfo(`Use pnpm version ${version}`);
   }
 
   const { platform, arch } = process;
@@ -112,8 +151,6 @@ try {
     await access(completeMarker);
     logInfo(`Use cached pnpm from ${pnpmHome}`);
   } catch {
-    // Verifies here rather than up front, since a cached version was already
-    // verified when it was installed.
     if (!isVersionVerified) {
       logInfo(`Verify pnpm version ${version} from npm registry`);
       const pkg = await fetchNpmPackage("@pnpm/exe");
