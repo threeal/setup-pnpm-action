@@ -3,19 +3,31 @@ import { basename } from "node:path";
 import { isRecord } from "./json.js";
 
 /**
+ * The field of a version file that sets the pnpm version, and the version it
+ * sets.
+ *
+ * The `version` is an exact version or a version range. Only
+ * `devEngines.packageManager` can name pnpm without a version.
+ */
+export type VersionField =
+  | { key: "devEngines.packageManager"; version?: string }
+  | { key: "packageManager"; version: string };
+
+/**
  * Extracts the pnpm version from the `devEngines` field of a `package.json`.
  *
  * This reads `devEngines.packageManager`, which must be an object with a `name`
  * and an optional `version`, as its array form isn't supported. The `version`
  * must be an exact `<major>.<minor>.<patch>` version, optionally followed by a
- * `+` and a hash, or a version range starting with an operator, while a missing
- * `version` means the latest version. Any other package manager or version
- * format throws an error.
+ * `+` and a hash, or a version range starting with an operator. Any other
+ * package manager or version format throws an error.
  * @param devEngines - The `devEngines` field of a `package.json`.
- * @returns The exact pnpm version without the hash, the version range, or
- * `latest`, or `undefined` if no package manager is named.
+ * @returns The exact pnpm version without the hash or the version range, with
+ * no version if none is set, or `undefined` if no package manager is named.
  */
-function extractVersionFromDevEngines(devEngines: unknown): string | undefined {
+function extractVersionFromDevEngines(
+  devEngines: unknown,
+): VersionField | undefined {
   if (devEngines === undefined) return undefined;
 
   if (!isRecord(devEngines)) {
@@ -48,7 +60,8 @@ function extractVersionFromDevEngines(devEngines: unknown): string | undefined {
     throw new Error(`Unsupported package manager: ${name}, expected pnpm`);
   }
 
-  if (version === undefined) return "latest";
+  const key = "devEngines.packageManager";
+  if (version === undefined) return { key };
 
   if (typeof version !== "string") {
     throw new Error(
@@ -57,9 +70,9 @@ function extractVersionFromDevEngines(devEngines: unknown): string | undefined {
   }
 
   const match = /^(\d+\.\d+\.\d+)(?:\+.*)?$/.exec(version);
-  if (match !== null) return match[1];
+  if (match !== null) return { key, version: match[1] };
 
-  if (/^[<>=~^]/.test(version)) return version;
+  if (/^[<>=~^]/.test(version)) return { key, version };
 
   throw new Error(
     `Invalid \`devEngines.packageManager.version\` value: ${version}`,
@@ -78,7 +91,7 @@ function extractVersionFromDevEngines(devEngines: unknown): string | undefined {
  */
 function extractVersionFromPackageManager(
   packageManager: unknown,
-): string | undefined {
+): VersionField | undefined {
   if (packageManager === undefined) return undefined;
 
   if (typeof packageManager !== "string") {
@@ -96,7 +109,7 @@ function extractVersionFromPackageManager(
     throw new Error(`Unsupported package manager: ${match[1]}, expected pnpm`);
   }
 
-  return match[2];
+  return { key: "packageManager", version: match[2] };
 }
 
 /**
@@ -105,12 +118,12 @@ function extractVersionFromPackageManager(
  * Like pnpm itself, this reads the `devEngines` field when it names a package
  * manager, and otherwise the `packageManager` field.
  * @param packageJson - The parsed contents of a `package.json` file.
- * @returns The exact pnpm version, the version range, or `latest`, or
- * `undefined` if neither field names a package manager.
+ * @returns The field that sets the pnpm version, or `undefined` if neither
+ * field names a package manager.
  */
 export function extractVersionFromPackageJson(
   packageJson: unknown,
-): string | undefined {
+): VersionField | undefined {
   if (!isRecord(packageJson)) {
     throw new Error("Invalid package.json");
   }
@@ -128,12 +141,12 @@ export function extractVersionFromPackageJson(
  * `packageManager` field. Throws an error for any other file, or if the file
  * can't be read or parsed.
  * @param file - The path of the version file.
- * @returns The exact pnpm version, the version range, or `latest`, or
- * `undefined` if the file doesn't set one.
+ * @returns The field that sets the pnpm version, or `undefined` if the file
+ * doesn't set one.
  */
 export async function readVersionFile(
   file: string,
-): Promise<string | undefined> {
+): Promise<VersionField | undefined> {
   const fileName = basename(file);
   if (fileName !== "package.json") {
     throw new Error(`Unsupported version file: ${fileName}`);
