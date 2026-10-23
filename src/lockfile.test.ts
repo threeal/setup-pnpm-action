@@ -107,9 +107,13 @@ describe("readLockedVersion", { concurrent: true }, () => {
     await expect(readLockedVersion(file, "^11.0.0")).resolves.toBeUndefined();
   });
 
-  test("throws for a missing lockfile", async () => {
+  test("returns undefined for a missing lockfile", async () => {
     await expect(
       readLockedVersion(join(tmpDir, "missing-lock.yaml"), "^11.0.0"),
-    ).rejects.toThrow();
+    ).resolves.toBeUndefined();
+  });
+
+  test("throws for a lockfile that can't be read", async () => {
+    await expect(readLockedVersion(tmpDir, "^11.0.0")).rejects.toThrow();
   });
 });

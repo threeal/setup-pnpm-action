@@ -2,9 +2,9 @@ import { exec } from "ghakit/exec";
 import { addPath, getInput, setEnv, setOutput } from "ghakit/io";
 import { logCommand, logError, logInfo } from "ghakit/log";
 import { getRunnerToolCache } from "ghakit/vars";
-import { existsSync } from "node:fs";
 import { access, chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { isNotFoundError } from "./fs.js";
 import { readLockedVersion } from "./lockfile.js";
 import { fetchNpmPackage } from "./npm.js";
 import {
@@ -45,7 +45,7 @@ try {
       );
     }
     packageJsonFile = versionFile;
-  } else if (existsSync("package.json")) {
+  } else {
     logInfo("No version specified, read pnpm version from package.json");
     try {
       version = await readVersionFile("package.json");
@@ -56,31 +56,31 @@ try {
         );
       }
     } catch (err) {
-      logError(err);
-      logInfo("Failed to read pnpm version from package.json, use latest");
+      if (isNotFoundError(err)) {
+        logInfo("No package.json found, use latest");
+      } else {
+        logError(err);
+        logInfo("Failed to read pnpm version from package.json, use latest");
+      }
     }
-  } else {
-    logInfo("No version specified, use latest");
   }
   version ??= "latest";
 
   let isVersionVerified = false;
   if (packageJsonFile !== undefined) {
     const lockfile = join(dirname(packageJsonFile), "pnpm-lock.yaml");
-    if (existsSync(lockfile)) {
-      try {
-        const lockedVersion = await readLockedVersion(lockfile, version);
-        if (lockedVersion !== undefined) {
-          version = lockedVersion;
-          // Trusts the lockfile, since pnpm resolved the version it locks from
-          // the npm registry.
-          isVersionVerified = true;
-          logInfo(`Use pnpm version ${version} locked in ${lockfile}`);
-        }
-      } catch (err) {
-        logError(err);
-        logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
+    try {
+      const lockedVersion = await readLockedVersion(lockfile, version);
+      if (lockedVersion !== undefined) {
+        version = lockedVersion;
+        // Trusts the lockfile, since pnpm resolved the version it locks from
+        // the npm registry.
+        isVersionVerified = true;
+        logInfo(`Use pnpm version ${version} locked in ${lockfile}`);
       }
+    } catch (err) {
+      logError(err);
+      logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
     }
   }
 

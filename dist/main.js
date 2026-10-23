@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 import { access, appendFile, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { EOL } from "node:os";
 import { basename, delimiter, dirname, join } from "node:path";
@@ -77,6 +76,16 @@ function logError(err, options) {
 function logCommand(command, ...args) {
 	const message = [command, ...args].join(" ");
 	process.stdout.write(`[command]${message}${EOL}`);
+}
+//#endregion
+//#region src/json.ts
+function isRecord(value) {
+	return typeof value === "object" && value !== null;
+}
+//#endregion
+//#region src/fs.ts
+function isNotFoundError(err) {
+	return isRecord(err) && err.code === "ENOENT";
 }
 //#endregion
 //#region src/semver.ts
@@ -195,14 +204,16 @@ function extractVersionFromPnpmLock(content) {
 	}
 }
 async function readLockedVersion(file, version) {
-	const lockedVersion = extractVersionFromPnpmLock(await readFile(file, "utf-8"));
+	let content;
+	try {
+		content = await readFile(file, "utf-8");
+	} catch (err) {
+		if (isNotFoundError(err)) return void 0;
+		throw err;
+	}
+	const lockedVersion = extractVersionFromPnpmLock(content);
 	if (lockedVersion === void 0 || !satisfies(lockedVersion, version)) return;
 	return lockedVersion;
-}
-//#endregion
-//#region src/json.ts
-function isRecord(value) {
-	return typeof value === "object" && value !== null;
 }
 //#endregion
 //#region src/npm.ts
@@ -319,22 +330,25 @@ try {
 		version = await readVersionFile(versionFile);
 		if (version === void 0) throw new Error(`Missing \`devEngines.packageManager\` or \`packageManager\` field in ${versionFile}`);
 		packageJsonFile = versionFile;
-	} else if (existsSync("package.json")) {
+	} else {
 		logInfo("No version specified, read pnpm version from package.json");
 		try {
 			version = await readVersionFile("package.json");
 			packageJsonFile = "package.json";
 			if (version === void 0) logInfo("No `devEngines.packageManager` or `packageManager` field in package.json, use latest");
 		} catch (err) {
-			logError(err);
-			logInfo("Failed to read pnpm version from package.json, use latest");
+			if (isNotFoundError(err)) logInfo("No package.json found, use latest");
+			else {
+				logError(err);
+				logInfo("Failed to read pnpm version from package.json, use latest");
+			}
 		}
-	} else logInfo("No version specified, use latest");
+	}
 	version ??= "latest";
 	let isVersionVerified = false;
 	if (packageJsonFile !== void 0) {
 		const lockfile = join(dirname(packageJsonFile), "pnpm-lock.yaml");
-		if (existsSync(lockfile)) try {
+		try {
 			const lockedVersion = await readLockedVersion(lockfile, version);
 			if (lockedVersion !== void 0) {
 				version = lockedVersion;
