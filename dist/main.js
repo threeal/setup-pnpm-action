@@ -228,13 +228,14 @@ const OS_NAMES = {
 	darwin: "macos",
 	win32: "win"
 };
-function getPnpmAsset(version, platform, arch) {
+async function findPnpmAsset(version, platform, arch) {
 	if (platform !== "linux" && platform !== "darwin" && platform !== "win32") throw new Error(`Unsupported platform: ${platform}`);
 	if (arch !== "x64" && arch !== "arm64") throw new Error(`Unsupported arch: ${arch}`);
 	const baseUrl = `https://github.com/pnpm/pnpm/releases/download/v${version}`;
+	let asset;
 	if (parseInt(version, 10) < 11) {
 		const name = `pnpm-${OS_NAMES[platform]}-${arch}`;
-		return platform === "win32" ? {
+		asset = platform === "win32" ? {
 			type: "exe",
 			url: `${baseUrl}/${name}.exe`,
 			fileName: "pnpm.exe"
@@ -243,14 +244,19 @@ function getPnpmAsset(version, platform, arch) {
 			url: `${baseUrl}/${name}`,
 			fileName: "pnpm"
 		};
+	} else {
+		const type = platform === "win32" ? "zip" : "tar.gz";
+		const fileName = `pnpm-${platform}-${arch}.${type}`;
+		asset = {
+			type,
+			url: `${baseUrl}/${fileName}`,
+			fileName
+		};
 	}
-	const type = platform === "win32" ? "zip" : "tar.gz";
-	const fileName = `pnpm-${platform}-${arch}.${type}`;
-	return {
-		type,
-		url: `${baseUrl}/${fileName}`,
-		fileName
-	};
+	const res = await fetch(asset.url, { method: "HEAD" });
+	if (res.status === 404) throw new Error(`pnpm does not provide a build of version ${version} for ${platform}/${arch}`);
+	if (!res.ok) throw new Error(`Failed to find pnpm build at ${asset.url}: ${res.statusText}`);
+	return asset;
 }
 // src/version.ts
 function extractVersionFromDevEngines(devEngines) {
@@ -389,7 +395,8 @@ try {
 			const pkg = await fetchNpmPackage("@pnpm/exe");
 			verifyPnpmVersion(version, pkg);
 		}
-		const asset = getPnpmAsset(version, platform, arch);
+		logInfo(`Find pnpm build for ${platform}/${arch} in GitHub releases`);
+		const asset = await findPnpmAsset(version, platform, arch);
 		logInfo(`Install pnpm to ${pnpmHome}`);
 		await rm(pnpmHome, {
 			recursive: true,

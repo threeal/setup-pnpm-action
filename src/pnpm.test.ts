@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  getPnpmAsset,
+  findPnpmAsset,
   resolvePnpmRange,
   resolvePnpmTag,
   verifyPnpmVersion,
@@ -49,38 +49,48 @@ describe("resolvePnpmRange", () => {
   });
 });
 
-describe("getPnpmAsset", { concurrent: true }, () => {
-  const combinations = ["9.15.0", "10.34.0", "11.5.0", "12.15.0"]
-    .flatMap((version) =>
-      ["linux", "darwin", "win32"].flatMap((platform) =>
-        ["x64", "arm64"].map((arch) => ({ version, platform, arch })),
-      ),
-    )
-    // pnpm 11.5.0 has no x64 macOS build.
-    .filter(
-      ({ version, platform, arch }) =>
-        version !== "11.5.0" || platform !== "darwin" || arch !== "x64",
-    );
+describe("findPnpmAsset", { concurrent: true }, () => {
+  const combinations = ["9.15.0", "10.34.0", "12.15.0"].flatMap((version) =>
+    ["linux", "darwin", "win32"].flatMap((platform) =>
+      ["x64", "arm64"].map((arch) => ({ version, platform, arch })),
+    ),
+  );
 
   test.each(combinations)(
-    "returns a downloadable asset for $version/$platform/$arch",
+    "finds the asset for $version/$platform/$arch",
     { timeout: 30000 },
     async ({ version, platform, arch }) => {
-      const { url } = getPnpmAsset(version, platform, arch);
-      const res = await fetch(url, { method: "HEAD" });
-      expect(res.ok).toBe(true);
+      const { url } = await findPnpmAsset(version, platform, arch);
+      expect(url).toContain(`/v${version}/`);
     },
   );
 
-  test("throws for an unsupported platform", () => {
-    expect(() => getPnpmAsset("11.5.0", "freebsd", "x64")).toThrow(
+  test("throws for an unsupported platform", async () => {
+    await expect(findPnpmAsset("12.15.0", "freebsd", "x64")).rejects.toThrow(
       "Unsupported platform: freebsd",
     );
   });
 
-  test("throws for an unsupported arch", () => {
-    expect(() => getPnpmAsset("11.5.0", "linux", "ia32")).toThrow(
+  test("throws for an unsupported arch", async () => {
+    await expect(findPnpmAsset("12.15.0", "linux", "ia32")).rejects.toThrow(
       "Unsupported arch: ia32",
+    );
+  });
+
+  test(
+    "throws for a build that isn't provided",
+    { timeout: 30000 },
+    async () => {
+      await expect(findPnpmAsset("11.5.0", "darwin", "x64")).rejects.toThrow(
+        "pnpm does not provide a build of version 11.5.0 for darwin/x64",
+      );
+    },
+  );
+
+  test("throws for a failed request", { timeout: 30000 }, async () => {
+    // GitHub rejects the malformed `%` in the release URL with 400 Bad Request.
+    await expect(findPnpmAsset("%", "linux", "x64")).rejects.toThrow(
+      "Failed to find pnpm build at https://github.com/pnpm/pnpm/releases/download/v%/pnpm-linux-x64.tar.gz: Bad Request",
     );
   });
 });
