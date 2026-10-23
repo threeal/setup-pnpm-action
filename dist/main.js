@@ -343,24 +343,22 @@ try {
 			} else {
 				logInfo(`Found pnpm version ${versionField.version} in the \`${versionField.key}\` field of ${versionFile}`);
 				version = versionField.version;
-				if (versionField.key === "devEngines.packageManager") {
-					const lockfile = join(dirname(versionFile), "pnpm-lock.yaml");
-					logInfo(`Read pnpm version from ${lockfile}`);
-					try {
-						const lockedVersion = extractVersionFromPnpmLock(await readFile(lockfile, "utf-8"));
-						if (lockedVersion === void 0) logInfo(`No pnpm version in ${lockfile}, ignore it`);
-						else if (!satisfies(lockedVersion, version)) logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}, which doesn't satisfy ${version}, ignore it`);
-						else {
-							logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}`);
-							version = lockedVersion;
-							isVersionVerified = true;
-						}
-					} catch (err) {
-						if (isNotFoundError(err)) logInfo(`No ${lockfile} found, ignore it`);
-						else {
-							logError(err);
-							logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
-						}
+				const lockfile = join(dirname(versionFile), "pnpm-lock.yaml");
+				logInfo(`Read pnpm version from ${lockfile}`);
+				try {
+					const lockedVersion = extractVersionFromPnpmLock(await readFile(lockfile, "utf-8"));
+					if (lockedVersion === void 0) logInfo(`No pnpm version in ${lockfile}, ignore it`);
+					else if (!satisfies(lockedVersion, version)) logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}, which doesn't satisfy ${version}, ignore it`);
+					else {
+						logInfo(`Found pnpm version ${lockedVersion} in ${lockfile}`);
+						version = lockedVersion;
+						isVersionVerified = true;
+					}
+				} catch (err) {
+					if (isNotFoundError(err)) logInfo(`No ${lockfile} found, ignore it`);
+					else {
+						logError(err);
+						logInfo(`Failed to read pnpm version from ${lockfile}, ignore it`);
 					}
 				}
 			}

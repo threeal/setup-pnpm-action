@@ -20,7 +20,9 @@ A version range resolves to the highest published version satisfying it. It cons
 
 `version` and `version-file` are mutually exclusive. If neither is set, the version is read from `package.json` in the current directory if available, otherwise the latest version is installed.
 
-When reading `package.json`, `devEngines.packageManager` takes precedence over `packageManager`, the same way pnpm reads them. Its `version` can be an exact version or a version range, which resolves to the highest published version satisfying it, and the latest version is installed if it's omitted. If a `pnpm-lock.yaml` next to that `package.json` locks a pnpm version satisfying `version`, that locked version is installed instead, without querying the npm registry, matching the version pnpm itself runs.
+When reading `package.json`, `devEngines.packageManager` takes precedence over `packageManager`, the same way pnpm reads them. Its `version` can be an exact version or a version range, which resolves to the highest published version satisfying it, and the latest version is installed if it's omitted.
+
+With either field, if a `pnpm-lock.yaml` next to that `package.json` locks a pnpm version satisfying the version read from it, that locked version is installed instead, without querying the npm registry, matching the version pnpm itself runs.
 
 ## Outputs
 
