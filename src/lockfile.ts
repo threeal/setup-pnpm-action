@@ -2,7 +2,8 @@
  * Extracts the locked pnpm version from the contents of a `pnpm-lock.yaml`.
  *
  * pnpm locks its own version in a separate YAML document at the start of the
- * lockfile, under `importers['.'].packageManagerDependencies['@pnpm/exe']`.
+ * lockfile, under `importers['.'].packageManagerDependencies.pnpm`. pnpm 11
+ * and below also lock `@pnpm/exe` there at the same version, which is ignored.
  * Rather than parsing YAML in full, this follows that path by indentation,
  * assuming the layout pnpm writes.
  * @param content - The contents of a `pnpm-lock.yaml` file.
@@ -15,12 +16,7 @@ export function extractVersionFromPnpmLock(
   const lines = content.split(/\r?\n/);
   if (lines[0] !== "---") return undefined;
 
-  const keys = [
-    "importers:",
-    ".:",
-    "packageManagerDependencies:",
-    "'@pnpm/exe':",
-  ];
+  const keys = ["importers:", ".:", "packageManagerDependencies:", "pnpm:"];
   let depth = 0;
   for (const line of lines.slice(1)) {
     // Stops at the end of the document.
