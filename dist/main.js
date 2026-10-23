@@ -244,7 +244,6 @@ function getPnpmAsset(version, platform, arch) {
 			fileName: "pnpm"
 		};
 	}
-	if (platform === "darwin" && arch === "x64") throw new Error("pnpm does not provide x64 macOS binaries for version 11 and above");
 	const type = platform === "win32" ? "zip" : "tar.gz";
 	const fileName = `pnpm-${platform}-${arch}.${type}`;
 	return {

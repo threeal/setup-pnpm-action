@@ -50,12 +50,13 @@ describe("resolvePnpmRange", () => {
 });
 
 describe("getPnpmAsset", { concurrent: true }, () => {
-  const combinations = ["9.15.0", "10.34.0", "11.5.0"]
+  const combinations = ["9.15.0", "10.34.0", "11.5.0", "12.15.0"]
     .flatMap((version) =>
       ["linux", "darwin", "win32"].flatMap((platform) =>
         ["x64", "arm64"].map((arch) => ({ version, platform, arch })),
       ),
     )
+    // pnpm 11.5.0 has no x64 macOS build.
     .filter(
       ({ version, platform, arch }) =>
         version !== "11.5.0" || platform !== "darwin" || arch !== "x64",
@@ -80,12 +81,6 @@ describe("getPnpmAsset", { concurrent: true }, () => {
   test("throws for an unsupported arch", () => {
     expect(() => getPnpmAsset("11.5.0", "linux", "ia32")).toThrow(
       "Unsupported arch: ia32",
-    );
-  });
-
-  test("throws for x64 macOS on version 11 and above", () => {
-    expect(() => getPnpmAsset("11.5.0", "darwin", "x64")).toThrow(
-      "pnpm does not provide x64 macOS binaries for version 11 and above",
     );
   });
 });
