@@ -15,7 +15,7 @@ import { isNotFoundError } from "./fs.js";
 import { extractVersionFromPnpmLock } from "./lockfile.js";
 import { fetchNpmPackage } from "./npm.js";
 import {
-  getPnpmAsset,
+  findPnpmAsset,
   resolvePnpmRange,
   resolvePnpmTag,
   verifyPnpmVersion,
@@ -153,7 +153,9 @@ try {
       verifyPnpmVersion(version, pkg);
     }
 
-    const asset = getPnpmAsset(version, platform, arch);
+    logInfo(`Find pnpm build for ${platform}/${arch} in GitHub releases`);
+    const asset = await findPnpmAsset(version, platform, arch);
+
     logInfo(`Install pnpm to ${pnpmHome}`);
     // Clears anything left by a previous install that didn't complete.
     await rm(pnpmHome, { recursive: true, force: true });
