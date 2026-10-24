@@ -20,7 +20,7 @@ import {
   resolvePnpmTag,
   verifyPnpmVersion,
 } from "./pnpm.js";
-import { satisfies } from "./semver.js";
+import { isValidRange, satisfies } from "./semver.js";
 import { readVersionFile, type VersionField } from "./version.js";
 
 /**
@@ -118,10 +118,8 @@ try {
     }
   }
 
-  if (!/^\d+\.\d+\.\d+/.test(version)) {
-    // npm rejects tags that are valid version ranges, so a version starting
-    // with a range operator is never a tag.
-    if (/^[<>=~^]/.test(version)) {
+  if (!/^\d+\.\d+\.\d+(?:-\S+)?$/.test(version)) {
+    if (isValidRange(version)) {
       logInfo(`Resolve pnpm version range ${version} from npm registry`);
       const pkg = await fetchNpmPackage("@pnpm/exe");
       version = resolvePnpmRange(version, pkg);
