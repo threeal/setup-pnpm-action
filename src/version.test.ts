@@ -43,6 +43,14 @@ describe("extractVersionFromPackageJson", () => {
       });
     });
 
+    test("returns a partial version as a version range", () => {
+      expect(
+        extractVersionFromPackageJson({
+          devEngines: { packageManager: { name: "pnpm", version: "11.x" } },
+        }),
+      ).toEqual({ key: "devEngines.packageManager", version: "11.x" });
+    });
+
     test("returns no version without a version", () => {
       expect(
         extractVersionFromPackageJson({
@@ -102,9 +110,9 @@ describe("extractVersionFromPackageJson", () => {
     test("throws for a malformed version", () => {
       expect(() =>
         extractVersionFromPackageJson({
-          devEngines: { packageManager: { name: "pnpm", version: "11.x" } },
+          devEngines: { packageManager: { name: "pnpm", version: "latest" } },
         }),
-      ).toThrow("Invalid `devEngines.packageManager.version` value: 11.x");
+      ).toThrow("Invalid `devEngines.packageManager.version` value: latest");
     });
   });
 
