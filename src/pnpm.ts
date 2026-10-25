@@ -3,7 +3,7 @@ import type { NpmPackage } from "./npm.js";
 /**
  * Verifies that an exact pnpm version is published.
  * @param version - The exact version.
- * @param pkg - The `@pnpm/exe` metadata from the npm registry.
+ * @param pkg - The `pnpm` metadata from the npm registry.
  */
 export function verifyPnpmVersion(version: string, pkg: NpmPackage): void {
   if (!Object.hasOwn(pkg.versions, version)) {

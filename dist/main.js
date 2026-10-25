@@ -398,7 +398,7 @@ try {
 	}
 	if (!/^\d+\.\d+\.\d+(?:-\S+)?$/.test(version)) {
 		logInfo(`Resolve pnpm ${version} from npm registry`);
-		const pkg = await fetchNpmPackage("@pnpm/exe");
+		const pkg = await fetchNpmPackage("pnpm");
 		const taggedVersion = pkg["dist-tags"][version];
 		if (typeof taggedVersion === "string") {
 			logInfo(`Found pnpm version ${taggedVersion} tagged ${version}`);
@@ -422,7 +422,7 @@ try {
 	} catch {
 		if (!isVersionVerified) {
 			logInfo(`Verify pnpm version ${version} from npm registry`);
-			const pkg = await fetchNpmPackage("@pnpm/exe");
+			const pkg = await fetchNpmPackage("pnpm");
 			verifyPnpmVersion(version, pkg);
 		}
 		logInfo(`Find pnpm build for ${platform}/${arch} in GitHub releases`);
