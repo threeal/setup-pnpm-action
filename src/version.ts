@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { isRecord } from "./json.js";
+import { createRangeMatcher } from "./semver.js";
 
 /**
  * The field of a version file that sets the pnpm version, and the version it
@@ -19,8 +20,8 @@ export type VersionField =
  * This reads `devEngines.packageManager`, which must be an object with a `name`
  * and an optional `version`, as its array form isn't supported. The `version`
  * must be an exact `<major>.<minor>.<patch>` version, optionally followed by a
- * `+` and a hash, or a version range starting with an operator. Any other
- * package manager or version format throws an error.
+ * `+` and a hash, or a version range. Any other package manager or version
+ * format throws an error.
  * @param devEngines - The `devEngines` field of a `package.json`.
  * @returns The exact pnpm version without the hash or the version range, with
  * no version if none is set, or `undefined` if no package manager is named.
@@ -72,7 +73,7 @@ function extractVersionFromDevEngines(
   const match = /^(\d+\.\d+\.\d+)(?:\+.*)?$/.exec(version);
   if (match !== null) return { key, version: match[1] };
 
-  if (/^[<>=~^]/.test(version)) return { key, version };
+  if (createRangeMatcher(version) !== undefined) return { key, version };
 
   throw new Error(
     `Invalid \`devEngines.packageManager.version\` value: ${version}`,

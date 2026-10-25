@@ -16,7 +16,7 @@ A GitHub Action that downloads and sets up standalone [pnpm](https://pnpm.io/) o
 | `version`      | The version, version range, or tag of pnpm to install.                                                                                  |
 | `version-file` | A file specifying the version of pnpm to install. Supports `package.json` with a `devEngines.packageManager` or `packageManager` field. |
 
-A version range resolves to the highest published version satisfying it. It consists of one or more space-separated comparators, each a full version prefixed by `<`, `<=`, `>`, `>=`, `=`, `~`, or `^`, such as `^11.0.0` or `>=10.0.0 <12.0.0`.
+A version range resolves to the highest published version satisfying it. It follows npm's range syntax, such as `^11`, `11.x`, `>=10.0.0 <12.0.0`, `10.0.0 - 11`, or `^10 || ^11`.
 
 `version` and `version-file` are mutually exclusive. If neither is set, the version is read from `package.json` in the current directory if available, otherwise the latest version is installed.
 

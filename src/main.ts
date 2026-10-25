@@ -113,7 +113,7 @@ try {
     }
   }
 
-  if (!/^\d+\.\d+\.\d+/.test(version)) {
+  if (!/^\d+\.\d+\.\d+(?:-\S+)?$/.test(version)) {
     logInfo(`Resolve pnpm ${version} from npm registry`);
     const pkg = await fetchNpmPackage("@pnpm/exe");
     const taggedVersion = pkg["dist-tags"][version];

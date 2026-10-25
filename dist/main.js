@@ -170,63 +170,102 @@ function parseVersion(version) {
 		Number(match[3])
 	];
 }
+function parsePartialVersion(version) {
+	if (!/^v?(?:\d+|[xX*])(?:\.(?:\d+|[xX*])){0,2}$/.test(version)) return;
+	const base = [
+		0,
+		0,
+		0
+	];
+	let count = 0;
+	for (const part of version.replace(/^v/, "").split(".")) {
+		if (!/^\d+$/.test(part)) break;
+		base[count] = Number(part);
+		count++;
+	}
+	return {
+		base,
+		count
+	};
+}
 function compareVersions(a, b) {
 	return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 }
-function createRangeMatcher(range) {
-	const matchers = [];
-	for (const comparator of range.trim().split(/\s+/)) {
-		const match = /^([<>]=?|[=~^])?(\d+)\.(\d+)\.(\d+)$/.exec(comparator);
-		if (match === null) return void 0;
-		const base = [
-			Number(match[2]),
-			Number(match[3]),
-			Number(match[4])
+function bumpVersion(version, index) {
+	switch (index) {
+		case 0: return [
+			version[0] + 1,
+			0,
+			0
 		];
-		const compare = (version) => compareVersions(version, base);
-		switch (match[1]) {
-			case "<":
-				matchers.push((version) => compare(version) < 0);
-				break;
-			case "<=":
-				matchers.push((version) => compare(version) <= 0);
-				break;
-			case ">":
-				matchers.push((version) => compare(version) > 0);
-				break;
-			case ">=":
-				matchers.push((version) => compare(version) >= 0);
-				break;
-			case "~": {
-				const upper = [
-					base[0],
-					base[1] + 1,
-					0
-				];
-				matchers.push((version) => compare(version) >= 0 && compareVersions(version, upper) < 0);
-				break;
-			}
-			case "^": {
-				const upper = base[0] > 0 ? [
-					base[0] + 1,
-					0,
-					0
-				] : base[1] > 0 ? [
-					0,
-					base[1] + 1,
-					0
-				] : [
-					0,
-					0,
-					base[2] + 1
-				];
-				matchers.push((version) => compare(version) >= 0 && compareVersions(version, upper) < 0);
-				break;
-			}
-			default: matchers.push((version) => compare(version) === 0);
-		}
+		case 1: return [
+			version[0],
+			version[1] + 1,
+			0
+		];
+		default: return [
+			version[0],
+			version[1],
+			version[2] + 1
+		];
 	}
-	return (version) => matchers.every((matcher) => matcher(version));
+}
+function atLeast(lower) {
+	return (version) => compareVersions(version, lower) >= 0;
+}
+function below(upper) {
+	return (version) => compareVersions(version, upper) < 0;
+}
+function createComparatorMatchers(comparator) {
+	const operator = /^(?:<=?|>=?|~>?|\^|=)/.exec(comparator)?.[0] ?? "";
+	const partial = parsePartialVersion(comparator.slice(operator.length));
+	if (partial === void 0) return void 0;
+	const { base, count } = partial;
+	if (count === 0) return operator === "<" || operator === ">" ? [() => false] : [];
+	const next = bumpVersion(base, count - 1);
+	switch (operator) {
+		case "<": return [below(base)];
+		case "<=": return [below(next)];
+		case ">": return [atLeast(next)];
+		case ">=": return [atLeast(base)];
+		case "~":
+		case "~>": return [atLeast(base), below(bumpVersion(base, count === 1 ? 0 : 1))];
+		case "^": {
+			const index = base.slice(0, count).findIndex((number) => number > 0);
+			return [atLeast(base), below(bumpVersion(base, index < 0 ? count - 1 : index))];
+		}
+		default: return [atLeast(base), below(next)];
+	}
+}
+function createComparatorSetMatchers(set) {
+	const trimmed = set.trim().replace(/([<>]=?|~>?|\^|=)\s+/g, "$1");
+	if (trimmed === "") return void 0;
+	const hyphen = /^(\S+)\s+-\s+(\S+)$/.exec(trimmed);
+	if (hyphen !== null) {
+		const lower = parsePartialVersion(hyphen[1]);
+		const upper = parsePartialVersion(hyphen[2]);
+		if (lower === void 0 || upper === void 0) return void 0;
+		const matchers = [];
+		if (lower.count > 0) matchers.push(atLeast(lower.base));
+		if (upper.count > 0) matchers.push(below(bumpVersion(upper.base, upper.count - 1)));
+		return matchers;
+	}
+	const matchers = [];
+	for (const comparator of trimmed.split(/\s+/)) {
+		const comparatorMatchers = createComparatorMatchers(comparator);
+		if (comparatorMatchers === void 0) return void 0;
+		matchers.push(...comparatorMatchers);
+	}
+	return matchers;
+}
+function createRangeMatcher(range) {
+	const sets = [];
+	for (const set of range.split("||")) {
+		const matchers = createComparatorSetMatchers(set);
+		if (matchers === void 0) return void 0;
+		sets.push(matchers);
+	}
+	return (version) => sets.some((matchers) => matchers.every((matcher) => matcher(version)));
 }
 function satisfies(version, range) {
 	const parsed = parseVersion(version);
@@ -266,7 +305,7 @@ function extractVersionFromDevEngines(devEngines) {
 		key,
 		version: match[1]
 	};
-	if (/^[<>=~^]/.test(version)) return {
+	if (createRangeMatcher(version) !== void 0) return {
 		key,
 		version
 	};
@@ -357,7 +396,7 @@ try {
 			}
 		}
 	}
-	if (!/^\d+\.\d+\.\d+/.test(version)) {
+	if (!/^\d+\.\d+\.\d+(?:-\S+)?$/.test(version)) {
 		logInfo(`Resolve pnpm ${version} from npm registry`);
 		const pkg = await fetchNpmPackage("@pnpm/exe");
 		const taggedVersion = pkg["dist-tags"][version];
