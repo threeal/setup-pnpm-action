@@ -1,5 +1,21 @@
 import { describe, expect, test } from "vitest";
-import { maxSatisfying, satisfies } from "./semver.js";
+import { createRangeMatcher, maxMatching, satisfies } from "./semver.js";
+
+describe("createRangeMatcher", () => {
+  test.each(["^11.0.0", ">=10.0.0 <12.0.0"])(
+    "creates a matcher for %j",
+    (range) => {
+      expect(createRangeMatcher(range)).toBeDefined();
+    },
+  );
+
+  test.each(["", "latest", "^11", "11.x", "^11.0.0-rc.0", "10.0.0 - 11.0.0"])(
+    "returns undefined for an unsupported range %j",
+    (range) => {
+      expect(createRangeMatcher(range)).toBeUndefined();
+    },
+  );
+});
 
 describe("satisfies", () => {
   test.each([
@@ -17,7 +33,7 @@ describe("satisfies", () => {
   );
 });
 
-describe("maxSatisfying", () => {
+describe("maxMatching", () => {
   const versions = [
     "11.5.0",
     "0.0.3",
@@ -33,6 +49,17 @@ describe("maxSatisfying", () => {
     "11.0.0",
   ];
 
+  /**
+   * Finds the highest of the test versions that satisfies a version range.
+   * @param range - The version range, which must be supported.
+   * @returns The highest satisfying version, or `undefined` if none does.
+   */
+  function maxMatchingRange(range: string): string | undefined {
+    const matcher = createRangeMatcher(range);
+    if (matcher === undefined) throw new Error(`Invalid range: ${range}`);
+    return maxMatching(versions, matcher);
+  }
+
   test.each([
     { range: "10.34.0", expected: "10.34.0" },
     { range: "=10.34.0", expected: "10.34.0" },
@@ -47,23 +74,14 @@ describe("maxSatisfying", () => {
     { range: ">=10.0.0 <11.0.0", expected: "10.35.0" },
     { range: " >=10.0.0   ~10.34.0 ", expected: "10.34.5" },
   ])("resolves $range to $expected", ({ range, expected }) => {
-    expect(maxSatisfying(versions, range)).toBe(expected);
+    expect(maxMatchingRange(range)).toBe(expected);
   });
 
   test("never resolves to a prerelease", () => {
-    expect(maxSatisfying(versions, "<11.0.0 >10.35.0")).toBeUndefined();
+    expect(maxMatchingRange("<11.0.0 >10.35.0")).toBeUndefined();
   });
 
   test("returns undefined when no version satisfies the range", () => {
-    expect(maxSatisfying(versions, "^12.0.0")).toBeUndefined();
+    expect(maxMatchingRange("^12.0.0")).toBeUndefined();
   });
-
-  test.each(["", "latest", "^11", "11.x", "^11.0.0-rc.0", "10.0.0 - 11.0.0"])(
-    "throws for an unsupported range %j",
-    (range) => {
-      expect(() => maxSatisfying(versions, range)).toThrow(
-        `Unsupported version range: ${range}`,
-      );
-    },
-  );
 });

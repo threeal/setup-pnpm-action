@@ -1,10 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  findPnpmAsset,
-  resolvePnpmRange,
-  resolvePnpmTag,
-  verifyPnpmVersion,
-} from "./pnpm.js";
+import { findPnpmAsset, verifyPnpmVersion } from "./pnpm.js";
 
 const pkg = {
   "dist-tags": { latest: "11.5.0" },
@@ -22,30 +17,6 @@ describe("verifyPnpmVersion", () => {
     expect(() => {
       verifyPnpmVersion("0.0.0", pkg);
     }).toThrow("Unknown pnpm version: 0.0.0");
-  });
-});
-
-describe("resolvePnpmTag", () => {
-  test("resolves a tag", () => {
-    expect(resolvePnpmTag("latest", pkg)).toBe("11.5.0");
-  });
-
-  test("throws for an unknown tag", () => {
-    expect(() => resolvePnpmTag("unknown", pkg)).toThrow(
-      "Unknown pnpm tag: unknown",
-    );
-  });
-});
-
-describe("resolvePnpmRange", () => {
-  test("resolves a range", () => {
-    expect(resolvePnpmRange("^10.0.0", pkg)).toBe("10.34.0");
-  });
-
-  test("throws for a range no version satisfies", () => {
-    expect(() => resolvePnpmRange("^12.0.0", pkg)).toThrow(
-      "No pnpm version satisfies range: ^12.0.0",
-    );
   });
 });
 
