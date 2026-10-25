@@ -4,7 +4,7 @@ import { fetchNpmPackage, parseNpmPackage } from "./npm.js";
 describe("parseNpmPackage", () => {
   test("returns the package metadata", () => {
     const data = {
-      name: "@pnpm/exe",
+      name: "pnpm",
       "dist-tags": { latest: "11.5.0" },
       versions: { "11.5.0": {} },
     };
@@ -23,7 +23,7 @@ describe("parseNpmPackage", () => {
 
 describe("fetchNpmPackage", { concurrent: true }, () => {
   test("returns the package metadata", async () => {
-    const pkg = await fetchNpmPackage("@pnpm/exe");
+    const pkg = await fetchNpmPackage("pnpm");
     expect(pkg.versions).toHaveProperty(["10.34.0"]);
   });
 
