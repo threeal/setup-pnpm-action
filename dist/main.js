@@ -121,107 +121,9 @@ async function fetchNpmPackage(name) {
 	if (!res.ok) throw new Error(`Failed to fetch ${name} from npm registry: ${res.statusText}`);
 	return parseNpmPackage(await res.json());
 }
-// src/semver.ts
-function parseVersion(version) {
-	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
-	if (match === null) return void 0;
-	return [
-		Number(match[1]),
-		Number(match[2]),
-		Number(match[3])
-	];
-}
-function compareVersions(a, b) {
-	return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-}
-function parseRange(range) {
-	const checks = [];
-	for (const comparator of range.trim().split(/\s+/)) {
-		const match = /^([<>]=?|[=~^])?(\d+)\.(\d+)\.(\d+)$/.exec(comparator);
-		if (match === null) return void 0;
-		const base = [
-			Number(match[2]),
-			Number(match[3]),
-			Number(match[4])
-		];
-		const compare = (version) => compareVersions(version, base);
-		switch (match[1]) {
-			case "<":
-				checks.push((version) => compare(version) < 0);
-				break;
-			case "<=":
-				checks.push((version) => compare(version) <= 0);
-				break;
-			case ">":
-				checks.push((version) => compare(version) > 0);
-				break;
-			case ">=":
-				checks.push((version) => compare(version) >= 0);
-				break;
-			case "~": {
-				const upper = [
-					base[0],
-					base[1] + 1,
-					0
-				];
-				checks.push((version) => compare(version) >= 0 && compareVersions(version, upper) < 0);
-				break;
-			}
-			case "^": {
-				const upper = base[0] > 0 ? [
-					base[0] + 1,
-					0,
-					0
-				] : base[1] > 0 ? [
-					0,
-					base[1] + 1,
-					0
-				] : [
-					0,
-					0,
-					base[2] + 1
-				];
-				checks.push((version) => compare(version) >= 0 && compareVersions(version, upper) < 0);
-				break;
-			}
-			default: checks.push((version) => compare(version) === 0);
-		}
-	}
-	return (version) => checks.every((check) => check(version));
-}
-function satisfies(version, range) {
-	const parsed = parseVersion(version);
-	const check = parseRange(range);
-	if (parsed === void 0 || check === void 0) return false;
-	return check(parsed);
-}
-function maxSatisfying(versions, range) {
-	const satisfies = parseRange(range);
-	if (satisfies === void 0) throw new Error(`Unsupported version range: ${range}`);
-	let max;
-	for (const version of versions) {
-		const parsed = parseVersion(version);
-		if (parsed === void 0 || !satisfies(parsed)) continue;
-		if (max === void 0 || compareVersions(parsed, max.parsed) > 0) max = {
-			version,
-			parsed
-		};
-	}
-	return max?.version;
-}
 // src/pnpm.ts
 function verifyPnpmVersion(version, pkg) {
 	if (!Object.hasOwn(pkg.versions, version)) throw new Error(`Unknown pnpm version: ${version}`);
-}
-function resolvePnpmTag(tag, pkg) {
-	const version = pkg["dist-tags"][tag];
-	if (typeof version !== "string") throw new Error(`Unknown pnpm tag: ${tag}`);
-	return version;
-}
-function resolvePnpmRange(range, pkg) {
-	const version = maxSatisfying(Object.keys(pkg.versions), range);
-	if (version === void 0) throw new Error(`No pnpm version satisfies range: ${range}`);
-	return version;
 }
 const OS_NAMES = {
 	linux: "linux",
@@ -257,6 +159,92 @@ async function findPnpmAsset(version, platform, arch) {
 	if (res.status === 404) throw new Error(`pnpm does not provide a build of version ${version} for ${platform}/${arch}`);
 	if (!res.ok) throw new Error(`Failed to find pnpm build at ${asset.url}: ${res.statusText}`);
 	return asset;
+}
+// src/semver.ts
+function parseVersion(version) {
+	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+	if (match === null) return void 0;
+	return [
+		Number(match[1]),
+		Number(match[2]),
+		Number(match[3])
+	];
+}
+function compareVersions(a, b) {
+	return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+function createRangeMatcher(range) {
+	const matchers = [];
+	for (const comparator of range.trim().split(/\s+/)) {
+		const match = /^([<>]=?|[=~^])?(\d+)\.(\d+)\.(\d+)$/.exec(comparator);
+		if (match === null) return void 0;
+		const base = [
+			Number(match[2]),
+			Number(match[3]),
+			Number(match[4])
+		];
+		const compare = (version) => compareVersions(version, base);
+		switch (match[1]) {
+			case "<":
+				matchers.push((version) => compare(version) < 0);
+				break;
+			case "<=":
+				matchers.push((version) => compare(version) <= 0);
+				break;
+			case ">":
+				matchers.push((version) => compare(version) > 0);
+				break;
+			case ">=":
+				matchers.push((version) => compare(version) >= 0);
+				break;
+			case "~": {
+				const upper = [
+					base[0],
+					base[1] + 1,
+					0
+				];
+				matchers.push((version) => compare(version) >= 0 && compareVersions(version, upper) < 0);
+				break;
+			}
+			case "^": {
+				const upper = base[0] > 0 ? [
+					base[0] + 1,
+					0,
+					0
+				] : base[1] > 0 ? [
+					0,
+					base[1] + 1,
+					0
+				] : [
+					0,
+					0,
+					base[2] + 1
+				];
+				matchers.push((version) => compare(version) >= 0 && compareVersions(version, upper) < 0);
+				break;
+			}
+			default: matchers.push((version) => compare(version) === 0);
+		}
+	}
+	return (version) => matchers.every((matcher) => matcher(version));
+}
+function satisfies(version, range) {
+	const parsed = parseVersion(version);
+	const matcher = createRangeMatcher(range);
+	if (parsed === void 0 || matcher === void 0) return false;
+	return matcher(parsed);
+}
+function maxMatching(versions, matcher) {
+	let max;
+	for (const version of versions) {
+		const parsed = parseVersion(version);
+		if (parsed === void 0 || !matcher(parsed)) continue;
+		if (max === void 0 || compareVersions(parsed, max.parsed) > 0) max = {
+			version,
+			parsed
+		};
+	}
+	return max?.version;
 }
 // src/version.ts
 function extractVersionFromDevEngines(devEngines) {
@@ -370,16 +358,19 @@ try {
 		}
 	}
 	if (!/^\d+\.\d+\.\d+/.test(version)) {
-		if (/^[<>=~^]/.test(version)) {
-			logInfo(`Resolve pnpm version range ${version} from npm registry`);
-			const pkg = await fetchNpmPackage("@pnpm/exe");
-			version = resolvePnpmRange(version, pkg);
-			logInfo(`Found pnpm version ${version} in npm registry`);
+		logInfo(`Resolve pnpm ${version} from npm registry`);
+		const pkg = await fetchNpmPackage("@pnpm/exe");
+		const taggedVersion = pkg["dist-tags"][version];
+		if (typeof taggedVersion === "string") {
+			logInfo(`Found pnpm version ${taggedVersion} tagged ${version}`);
+			version = taggedVersion;
 		} else {
-			logInfo(`Resolve pnpm tag ${version} from npm registry`);
-			const pkg = await fetchNpmPackage("@pnpm/exe");
-			version = resolvePnpmTag(version, pkg);
-			logInfo(`Found pnpm version ${version} in npm registry`);
+			const matcher = createRangeMatcher(version);
+			if (matcher === void 0) throw new Error(`Unknown pnpm version range or tag: ${version}`);
+			const matchingVersion = maxMatching(Object.keys(pkg.versions), matcher);
+			if (matchingVersion === void 0) throw new Error(`No pnpm version satisfies ${version}`);
+			logInfo(`Found pnpm version ${matchingVersion} satisfying ${version}`);
+			version = matchingVersion;
 		}
 		isVersionVerified = true;
 	}

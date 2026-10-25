@@ -14,13 +14,8 @@ import { dirname, join } from "node:path";
 import { isNotFoundError } from "./fs.js";
 import { extractVersionFromPnpmLock } from "./lockfile.js";
 import { fetchNpmPackage } from "./npm.js";
-import {
-  findPnpmAsset,
-  resolvePnpmRange,
-  resolvePnpmTag,
-  verifyPnpmVersion,
-} from "./pnpm.js";
-import { satisfies } from "./semver.js";
+import { findPnpmAsset, verifyPnpmVersion } from "./pnpm.js";
+import { createRangeMatcher, maxMatching, satisfies } from "./semver.js";
 import { readVersionFile, type VersionField } from "./version.js";
 
 /**
@@ -119,18 +114,23 @@ try {
   }
 
   if (!/^\d+\.\d+\.\d+/.test(version)) {
-    // npm rejects tags that are valid version ranges, so a version starting
-    // with a range operator is never a tag.
-    if (/^[<>=~^]/.test(version)) {
-      logInfo(`Resolve pnpm version range ${version} from npm registry`);
-      const pkg = await fetchNpmPackage("@pnpm/exe");
-      version = resolvePnpmRange(version, pkg);
-      logInfo(`Found pnpm version ${version} in npm registry`);
+    logInfo(`Resolve pnpm ${version} from npm registry`);
+    const pkg = await fetchNpmPackage("@pnpm/exe");
+    const taggedVersion = pkg["dist-tags"][version];
+    if (typeof taggedVersion === "string") {
+      logInfo(`Found pnpm version ${taggedVersion} tagged ${version}`);
+      version = taggedVersion;
     } else {
-      logInfo(`Resolve pnpm tag ${version} from npm registry`);
-      const pkg = await fetchNpmPackage("@pnpm/exe");
-      version = resolvePnpmTag(version, pkg);
-      logInfo(`Found pnpm version ${version} in npm registry`);
+      const matcher = createRangeMatcher(version);
+      if (matcher === undefined) {
+        throw new Error(`Unknown pnpm version range or tag: ${version}`);
+      }
+      const matchingVersion = maxMatching(Object.keys(pkg.versions), matcher);
+      if (matchingVersion === undefined) {
+        throw new Error(`No pnpm version satisfies ${version}`);
+      }
+      logInfo(`Found pnpm version ${matchingVersion} satisfying ${version}`);
+      version = matchingVersion;
     }
     isVersionVerified = true;
   }

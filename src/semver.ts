@@ -4,6 +4,11 @@
 type Version = [number, number, number];
 
 /**
+ * A function that tells whether a version matches a version range.
+ */
+export type Matcher = (version: Version) => boolean;
+
+/**
  * Parses a version of the form `<major>.<minor>.<patch>`.
  * @param version - The version to parse.
  * @returns The parsed version, or `undefined` if it isn't of that form, such
@@ -27,18 +32,16 @@ function compareVersions(a: Version, b: Version): number {
 }
 
 /**
- * Parses a version range into a check of whether a version satisfies it.
+ * Creates a matcher of the versions that satisfy a version range.
  *
  * A range is one or more space-separated comparators, all of which a version
  * must satisfy. Each comparator is a `<major>.<minor>.<patch>` version prefixed
  * by `<`, `<=`, `>`, `>=`, `=`, `~`, or `^`, where no prefix means `=`.
  * @param range - The version range, such as `^11.0.0` or `>=10.0.0 <12.0.0`.
- * @returns The check, or `undefined` if the range isn't supported.
+ * @returns The matcher, or `undefined` if the range isn't supported.
  */
-function parseRange(
-  range: string,
-): ((version: Version) => boolean) | undefined {
-  const checks: ((version: Version) => boolean)[] = [];
+export function createRangeMatcher(range: string): Matcher | undefined {
+  const matchers: Matcher[] = [];
   for (const comparator of range.trim().split(/\s+/)) {
     const match = /^([<>]=?|[=~^])?(\d+)\.(\d+)\.(\d+)$/.exec(comparator);
     if (match === null) return undefined;
@@ -51,25 +54,25 @@ function parseRange(
     const compare = (version: Version) => compareVersions(version, base);
     switch (match[1]) {
       case "<":
-        checks.push((version) => compare(version) < 0);
+        matchers.push((version) => compare(version) < 0);
         break;
 
       case "<=":
-        checks.push((version) => compare(version) <= 0);
+        matchers.push((version) => compare(version) <= 0);
         break;
 
       case ">":
-        checks.push((version) => compare(version) > 0);
+        matchers.push((version) => compare(version) > 0);
         break;
 
       case ">=":
-        checks.push((version) => compare(version) >= 0);
+        matchers.push((version) => compare(version) >= 0);
         break;
 
       // Allows patch changes.
       case "~": {
         const upper: Version = [base[0], base[1] + 1, 0];
-        checks.push(
+        matchers.push(
           (version) =>
             compare(version) >= 0 && compareVersions(version, upper) < 0,
         );
@@ -84,7 +87,7 @@ function parseRange(
             : base[1] > 0
               ? [0, base[1] + 1, 0]
               : [0, 0, base[2] + 1];
-        checks.push(
+        matchers.push(
           (version) =>
             compare(version) >= 0 && compareVersions(version, upper) < 0,
         );
@@ -92,11 +95,11 @@ function parseRange(
       }
 
       default:
-        checks.push((version) => compare(version) === 0);
+        matchers.push((version) => compare(version) === 0);
         break;
     }
   }
-  return (version) => checks.every((check) => check(version));
+  return (version) => matchers.every((matcher) => matcher(version));
 }
 
 /**
@@ -105,38 +108,34 @@ function parseRange(
  * A version not of the form `<major>.<minor>.<patch>`, such as a prerelease,
  * never satisfies a range, and an unsupported range is never satisfied.
  * @param version - The version to check.
- * @param range - The version range, as described in {@link parseRange}.
+ * @param range - The version range, as described in
+ * {@link createRangeMatcher}.
  * @returns Whether the version satisfies the range.
  */
 export function satisfies(version: string, range: string): boolean {
   const parsed = parseVersion(version);
-  const check = parseRange(range);
-  if (parsed === undefined || check === undefined) return false;
-  return check(parsed);
+  const matcher = createRangeMatcher(range);
+  if (parsed === undefined || matcher === undefined) return false;
+  return matcher(parsed);
 }
 
 /**
- * Finds the highest version that satisfies a version range.
+ * Finds the highest version that a matcher matches.
  *
- * Throws an error if the range isn't supported. Versions not of the form
- * `<major>.<minor>.<patch>`, such as prereleases, never satisfy a range.
+ * Versions not of the form `<major>.<minor>.<patch>`, such as prereleases,
+ * never match.
  * @param versions - The versions to search.
- * @param range - The version range, as described in {@link parseRange}.
- * @returns The highest satisfying version, or `undefined` if none does.
+ * @param matcher - The matcher, such as one from {@link createRangeMatcher}.
+ * @returns The highest matching version, or `undefined` if none matches.
  */
-export function maxSatisfying(
+export function maxMatching(
   versions: string[],
-  range: string,
+  matcher: Matcher,
 ): string | undefined {
-  const satisfies = parseRange(range);
-  if (satisfies === undefined) {
-    throw new Error(`Unsupported version range: ${range}`);
-  }
-
   let max: { version: string; parsed: Version } | undefined;
   for (const version of versions) {
     const parsed = parseVersion(version);
-    if (parsed === undefined || !satisfies(parsed)) continue;
+    if (parsed === undefined || !matcher(parsed)) continue;
     if (max === undefined || compareVersions(parsed, max.parsed) > 0) {
       max = { version, parsed };
     }
