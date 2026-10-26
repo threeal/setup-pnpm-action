@@ -73,6 +73,20 @@ jobs:
           test "$version" = "10.34.9"
           test "$version" = "${{ steps.setup-pnpm-version.outputs.version }}"
 
+      - name: Setup pnpm with version range input
+        id: setup-pnpm-version-range
+        uses: ./setup-pnpm-action
+        with:
+          version: ">=10.34.9 <10.34.10"
+
+      - name: Verify pnpm version
+        shell: bash
+        run: |
+          version="$(pnpm --version)"
+          echo "$version"
+          test "$version" = "10.34.9"
+          test "$version" = "${{ steps.setup-pnpm-version-range.outputs.version }}"
+
       - name: Setup pnpm from cache
         id: setup-pnpm-cached
         uses: ./setup-pnpm-action
