@@ -56,23 +56,21 @@ jobs:
         run: |
           version="$(pnpm --version)"
           echo "$version"
-          test "$version" != "10.34.0"
+          test "$version" != "10.34.9"
           test "$version" = "${{ steps.setup-pnpm.outputs.version }}"
 
       - name: Setup pnpm with version input
         id: setup-pnpm-version
         uses: ./setup-pnpm-action
         with:
-          version: 10.34.0
+          version: 10.34.9
 
       - name: Verify pnpm version
-        # TODO: pnpm v10 and below verification keeps failing on Windows arm64 runners
-        if: matrix.os != 'windows-11-arm'
         shell: bash
         run: |
           version="$(pnpm --version)"
           echo "$version"
-          test "$version" = "10.34.0"
+          test "$version" = "10.34.9"
           test "$version" = "${{ steps.setup-pnpm-version.outputs.version }}"
 
       - name: Setup pnpm from cache
@@ -86,14 +84,14 @@ jobs:
         run: |
           version="$(pnpm --version)"
           echo "$version"
-          test "$version" != "10.34.0"
+          test "$version" != "10.34.9"
           test "$version" = "${{ steps.setup-pnpm-cached.outputs.version }}"
 
       - name: Write package.json
         shell: bash
         run: |
           mkdir project
-          echo '{"devEngines":{"packageManager":{"name":"pnpm","version":"9.15.0"}}}' > project/package.json
+          echo '{"devEngines":{"packageManager":{"name":"pnpm","version":"10.34.8"}}}' > project/package.json
 
       - name: Setup pnpm with version-file input
         id: setup-pnpm-version-file
@@ -102,21 +100,19 @@ jobs:
           version-file: project/package.json
 
       - name: Verify pnpm version
-        # TODO: pnpm v10 and below verification keeps failing on Windows arm64 runners
-        if: matrix.os != 'windows-11-arm'
         shell: bash
         run: |
           rm -rf project
           version="$(pnpm --version)"
           echo "$version"
-          test "$version" = "9.15.0"
+          test "$version" = "10.34.8"
           test "$version" = "${{ steps.setup-pnpm-version-file.outputs.version }}"
 
       - name: Write package.json and pnpm-lock.yaml
         shell: bash
         run: |
           echo '{"devEngines":{"packageManager":{"name":"pnpm","version":"^10.0.0"}}}' > package.json
-          printf '%s\n' --- "lockfileVersion: '9.0'" "" "importers:" "" "  .:" "    packageManagerDependencies:" "      pnpm:" "        specifier: ^10.0.0" "        version: 10.34.0" > pnpm-lock.yaml
+          printf '%s\n' --- "lockfileVersion: '9.0'" "" "importers:" "" "  .:" "    packageManagerDependencies:" "      pnpm:" "        specifier: ^10.0.0" "        version: 10.34.9" > pnpm-lock.yaml
 
       - name: Setup pnpm from cache with pnpm-lock.yaml
         id: setup-pnpm-cached-lockfile
@@ -125,19 +121,17 @@ jobs:
           PATH: "" # forces cache usage by making curl unavailable
 
       - name: Verify pnpm version
-        # TODO: pnpm v10 and below verification keeps failing on Windows arm64 runners
-        if: matrix.os != 'windows-11-arm'
         shell: bash
         run: |
           rm package.json pnpm-lock.yaml
           version="$(pnpm --version)"
           echo "$version"
-          test "$version" = "10.34.0"
+          test "$version" = "10.34.9"
           test "$version" = "${{ steps.setup-pnpm-cached-lockfile.outputs.version }}"
 
       - name: Write package.json
         shell: bash
-        run: echo '{"packageManager":"pnpm@9.15.0"}' > package.json
+        run: echo '{"packageManager":"pnpm@10.34.8"}' > package.json
 
       - name: Setup pnpm from cache with package.json
         id: setup-pnpm-cached-package-json
@@ -146,12 +140,10 @@ jobs:
           PATH: "" # forces cache usage by making curl unavailable
 
       - name: Verify pnpm version
-        # TODO: pnpm v10 and below verification keeps failing on Windows arm64 runners
-        if: matrix.os != 'windows-11-arm'
         shell: bash
         run: |
           rm package.json
           version="$(pnpm --version)"
           echo "$version"
-          test "$version" = "9.15.0"
+          test "$version" = "10.34.8"
           test "$version" = "${{ steps.setup-pnpm-cached-package-json.outputs.version }}"
