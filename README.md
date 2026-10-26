@@ -6,7 +6,7 @@ A GitHub Action that downloads and sets up standalone [pnpm](https://pnpm.io/) o
 
 ```yaml
 - name: Setup pnpm
-  uses: threeal/setup-pnpm-action@v2.0.0
+  uses: threeal/setup-pnpm-action@v2.1.0
 ```
 
 ## Inputs
@@ -20,7 +20,7 @@ A version range resolves to the highest published version satisfying it. It foll
 
 `version` and `version-file` are mutually exclusive. If neither is set, the version is read from `package.json` in the current directory if available, otherwise the latest version is installed.
 
-When reading `package.json`, `devEngines.packageManager` takes precedence over `packageManager`, the same way pnpm reads them. Its `version` can be an exact version or a version range, which resolves to the highest published version satisfying it, and the latest version is installed if it's omitted.
+When reading `package.json`, `devEngines.packageManager` takes precedence over `packageManager`, the same way pnpm reads them. Its `version` can be an exact version or a version range, and the latest version is installed if it's omitted.
 
 With either field, if a `pnpm-lock.yaml` next to that `package.json` locks a pnpm version satisfying the version read from it, that locked version is installed instead, without querying the npm registry, matching the version pnpm itself runs.
 
@@ -34,9 +34,9 @@ With either field, if a `pnpm-lock.yaml` next to that `package.json` locks a pnp
 
 ```yaml
 - name: Setup pnpm
-  uses: threeal/setup-pnpm-action@v2.0.0
+  uses: threeal/setup-pnpm-action@v2.1.0
   with:
-    version: 11.5.0
+    version: 12.15.0
 
 - name: Check pnpm
   run: pnpm --version
