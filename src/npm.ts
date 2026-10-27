@@ -28,11 +28,16 @@ export function parseNpmPackage(data: unknown): NpmPackage {
 
 /**
  * Fetches a package's metadata from the npm registry.
+ *
+ * Requests the abbreviated metadata that package managers use for installs,
+ * which is much smaller than the full metadata.
  * @param name - The name of the package to fetch.
  * @returns The package's metadata.
  */
 export async function fetchNpmPackage(name: string): Promise<NpmPackage> {
-  const res = await fetch(`https://registry.npmjs.org/${name}`);
+  const res = await fetch(`https://registry.npmjs.org/${name}`, {
+    headers: { Accept: "application/vnd.npm.install-v1+json" },
+  });
   if (!res.ok) {
     throw new Error(
       `Failed to fetch ${name} from npm registry: ${res.statusText}`,
