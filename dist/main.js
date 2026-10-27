@@ -117,7 +117,7 @@ function parseNpmPackage(data) {
 	};
 }
 async function fetchNpmPackage(name) {
-	const res = await fetch(`https://registry.npmjs.org/${name}`);
+	const res = await fetch(`https://registry.npmjs.org/${name}`, { headers: { Accept: "application/vnd.npm.install-v1+json" } });
 	if (!res.ok) throw new Error(`Failed to fetch ${name} from npm registry: ${res.statusText}`);
 	return parseNpmPackage(await res.json());
 }
