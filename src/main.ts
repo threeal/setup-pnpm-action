@@ -190,7 +190,7 @@ try {
   await setEnv("PNPM_HOME", pnpmHome);
   await addPath(pnpmHome);
   await setOutput("version", version);
-} catch (err: unknown) {
+} catch (err) {
   logError(err);
   process.exitCode = 1;
 }
